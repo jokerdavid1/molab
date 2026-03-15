@@ -72,17 +72,17 @@ export default function HomePage() {
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-3 sm:px-6 lg:px-8">
 
         {/* header */}
-        <header className="grid h-40 grid-cols-[1fr_auto_1fr] items-center">
+        <header className="grid h-32 grid-cols-[1fr_auto_1fr] items-center">
 
           <div className="flex items-center">
             <Link href="/">
               <Image
                 src="/logo/logo.png"
                 alt="MoLab"
-                width={1040}
-                height={390}
+                width={620}
+                height={233}
                 priority
-                className="h-36 w-auto drop-shadow-[0_0_40px_rgba(34,211,238,0.4)]"
+                className="h-28 w-auto drop-shadow-[0_0_35px_rgba(34,211,238,0.4)]"
               />
             </Link>
           </div>
