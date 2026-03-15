@@ -66,7 +66,7 @@ export default function HomePage() {
 
   return (
     <main className="relative h-screen overflow-hidden bg-slate-950 text-white">
-      {/* Luxury background */}
+      {/* background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_26%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
         <div className="absolute left-1/2 top-8 h-56 w-56 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl" />
@@ -75,7 +75,7 @@ export default function HomePage() {
       </div>
 
       <section className="relative mx-auto flex h-screen max-w-[1800px] flex-col justify-center px-4 py-3 sm:px-6 lg:px-8">
-        {/* Top heading */}
+        {/* heading */}
         <div className="flex flex-col items-center">
           <div className="mb-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-cyan-300 sm:text-sm">
             MoLab
@@ -91,7 +91,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Column headers + arrows */}
+        {/* top labels with arrows */}
         <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, i) => {
             const active = i === activeIndex;
@@ -102,8 +102,8 @@ export default function HomePage() {
                   onClick={() => handleActivate(i)}
                   className={`relative rounded-full border px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] transition-all duration-500 sm:text-sm ${
                     active
-                      ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
-                      : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-slate-200"
+                      ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.22)]"
+                      : "scale-100 border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-slate-200"
                   }`}
                 >
                   {col.label}
@@ -111,10 +111,16 @@ export default function HomePage() {
 
                 {i < COLUMNS.length - 1 && (
                   <div className="pointer-events-none absolute right-[-16px] top-1/2 z-10 hidden -translate-y-1/2 xl:flex items-center">
-                    <div className="h-px w-8 bg-gradient-to-r from-white/10 to-cyan-300/40" />
+                    <div
+                      className={`h-px w-8 transition-all duration-500 ${
+                        active
+                          ? "bg-gradient-to-r from-cyan-300/40 to-cyan-200"
+                          : "bg-gradient-to-r from-white/10 to-slate-500/40"
+                      }`}
+                    />
                     <svg
                       className={`h-4 w-4 transition-all duration-500 ${
-                        active ? "text-cyan-300" : "text-slate-500"
+                        active ? "scale-110 text-cyan-300" : "text-slate-500"
                       }`}
                       viewBox="0 0 24 24"
                       fill="none"
@@ -133,7 +139,7 @@ export default function HomePage() {
           })}
         </div>
 
-        {/* 4 columns */}
+        {/* columns */}
         <div className="mt-4 grid flex-1 grid-cols-2 gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, colIndex) => {
             const active = colIndex === activeIndex;
@@ -150,28 +156,8 @@ export default function HomePage() {
                 aria-label={`Activate ${col.label}`}
                 type="button"
               >
-                {/* small top bar */}
-                <div className="mb-3 flex items-center justify-between">
-                  <div
-                    className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] transition sm:text-xs ${
-                      active
-                        ? "bg-cyan-400/20 text-cyan-200"
-                        : "bg-white/5 text-slate-500"
-                    }`}
-                  >
-                    {col.label}
-                  </div>
+                {/* removed repeated text inside frame */}
 
-                  <div
-                    className={`h-2.5 w-2.5 rounded-full transition ${
-                      active
-                        ? "bg-cyan-400 shadow-[0_0_14px_rgba(34,211,238,0.95)]"
-                        : "bg-white/15"
-                    }`}
-                  />
-                </div>
-
-                {/* images stacked vertically for ALL columns */}
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-3">
                   {col.images.map((src, imgIndex) => (
                     <div
@@ -189,14 +175,13 @@ export default function HomePage() {
                         height={600}
                         priority
                         className={`h-full max-h-[19vh] w-full object-contain p-2 transition-all duration-700 sm:max-h-[20vh] xl:max-h-[26vh] ${
-                          active ? "scale-100" : "scale-95"
+                          active ? "scale-110" : "scale-95"
                         }`}
                       />
                     </div>
                   ))}
                 </div>
 
-                {/* active glow */}
                 <div
                   className={`pointer-events-none absolute inset-x-6 bottom-1 h-8 rounded-full blur-2xl transition ${
                     active ? "bg-cyan-400/20 opacity-100" : "opacity-0"
