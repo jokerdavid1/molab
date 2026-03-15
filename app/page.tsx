@@ -78,7 +78,6 @@ export default function HomePage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
-      {/* Background glow */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-20 h-72 w-72 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl" />
         <div className="absolute bottom-10 left-20 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
@@ -114,38 +113,41 @@ export default function HomePage() {
           }`}
           style={{ transitionDuration: `${FADE_DURATION}ms` }}
         >
-          {currentStage.single ? (
-            <div className="mx-auto flex w-full max-w-6xl justify-center">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
-                <Image
-                  src={currentStage.images[0]}
-                  alt={currentStage.title}
-                  width={1400}
-                  height={900}
-                  priority
-                  className="h-auto max-h-[62vh] w-auto rounded-2xl object-contain"
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2">
-              {currentStage.images.map((src, index) => (
-                <div
-                  key={`${currentStage.key}-${index}`}
-                  className="flex items-center justify-center rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm"
-                >
+          {/* Fixed outer frame for ALL stages */}
+          <div className="mx-auto w-full max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
+            <div className="flex h-[62vh] min-h-[520px] w-full items-center justify-center rounded-2xl bg-black/20 p-4">
+              {currentStage.single ? (
+                <div className="flex h-full w-full items-center justify-center">
                   <Image
-                    src={src}
-                    alt={`${currentStage.title} ${index + 1}`}
-                    width={900}
-                    height={600}
+                    src={currentStage.images[0]}
+                    alt={currentStage.title}
+                    width={1400}
+                    height={900}
                     priority
-                    className="h-auto max-h-[46vh] w-full rounded-2xl object-contain"
+                    className="max-h-full w-auto max-w-full object-contain rounded-2xl"
                   />
                 </div>
-              ))}
+              ) : (
+                <div className="grid h-full w-full grid-cols-1 gap-6 md:grid-cols-2">
+                  {currentStage.images.map((src, index) => (
+                    <div
+                      key={`${currentStage.key}-${index}`}
+                      className="flex h-full items-center justify-center overflow-hidden rounded-2xl bg-black/20 p-3"
+                    >
+                      <Image
+                        src={src}
+                        alt={`${currentStage.title} ${index + 1}`}
+                        width={900}
+                        height={600}
+                        priority
+                        className="max-h-full w-auto max-w-full object-contain rounded-xl"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
