@@ -51,6 +51,7 @@ export default function HomePage() {
 
   useEffect(() => {
     startAutoCycle();
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -62,7 +63,6 @@ export default function HomePage() {
 
   return (
     <main className="relative min-h-screen bg-[#020617] text-white">
-
       {/* Background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_25%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
@@ -70,25 +70,22 @@ export default function HomePage() {
       </div>
 
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-3 sm:px-6 lg:px-8">
-
         {/* Header */}
         <header className="grid h-20 grid-cols-[1fr_auto_1fr] items-center">
-
-          {/* Logo */}
           <div className="flex items-center">
             <Link href="/">
               <Image
                 src="/logo/logo.png"
                 alt="MoLab"
-                width={320}
-                height={120}
+                width={190}
+                height={72}
                 priority
-                className="w-auto drop-shadow-[0_0_25px_rgba(34,211,238,0.35)]"
+                sizes="190px"
+                className="w-auto drop-shadow-[0_0_20px_rgba(34,211,238,0.28)]"
               />
             </Link>
           </div>
 
-          {/* Navigation */}
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
             <Link href="/technology" className="transition hover:text-cyan-300">
               Technology
@@ -104,7 +101,6 @@ export default function HomePage() {
             </Link>
           </nav>
 
-          {/* Upload Button */}
           <div className="flex justify-end">
             <Link
               href="/upload"
@@ -113,30 +109,26 @@ export default function HomePage() {
               Upload Sample
             </Link>
           </div>
-
         </header>
 
         {/* Title */}
-        <div className="mt-2 flex flex-col items-center">
-
-          <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-7 py-2.5 text-lg uppercase tracking-[0.35em] text-cyan-300">
+        <div className="mt-1 flex flex-col items-center">
+          <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-6 py-2 text-base uppercase tracking-[0.35em] text-cyan-300">
             AI SAND ANALYSIS
           </div>
 
-          <p className="mt-3 max-w-xl text-center text-base text-slate-400">
+          <p className="mt-3 max-w-xl text-center text-sm text-slate-400">
             Upload grain images and instantly generate automated sieve analysis.
           </p>
-
         </div>
 
         {/* Stage Buttons */}
-        <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="mt-10 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, i) => {
             const active = i === activeIndex;
 
             return (
               <div key={col.key} className="flex items-center justify-center">
-
                 <button
                   onClick={() => handleActivate(i)}
                   className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
@@ -147,7 +139,6 @@ export default function HomePage() {
                 >
                   {col.label}
                 </button>
-
               </div>
             );
           })}
@@ -168,15 +159,12 @@ export default function HomePage() {
                     : "scale-[0.98] border-white/10 bg-white/[0.04] opacity-40"
                 }`}
               >
-
                 <div className="grid flex-1 gap-3">
-
                   {col.images.map((src, imgIndex) => (
                     <div
                       key={`${col.key}-${imgIndex}`}
                       className="flex min-h-[200px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
                     >
-
                       <Image
                         src={src}
                         alt={`${col.label} ${imgIndex + 1}`}
@@ -187,10 +175,8 @@ export default function HomePage() {
                           active ? "scale-110" : "scale-95"
                         }`}
                       />
-
                     </div>
                   ))}
-
                 </div>
 
                 <div
@@ -198,7 +184,6 @@ export default function HomePage() {
                     active ? "bg-cyan-400/20 opacity-100" : "opacity-0"
                   }`}
                 />
-
               </button>
             );
           })}
@@ -213,7 +198,6 @@ export default function HomePage() {
             Upload Your Sample
           </Link>
         </div>
-
       </section>
     </main>
   );
