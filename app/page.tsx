@@ -70,8 +70,10 @@ export default function HomePage() {
       </div>
 
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-3 sm:px-6 lg:px-8">
+
         {/* header */}
-        <header className="grid h-32 grid-cols-[1fr_auto_1fr] items-center">
+        <header className="grid h-40 grid-cols-[1fr_auto_1fr] items-center">
+
           <div className="flex items-center">
             <Link href="/">
               <Image
@@ -80,7 +82,7 @@ export default function HomePage() {
                 width={1040}
                 height={390}
                 priority
-                className="h-36 w-auto drop-shadow-[0_0_40px_rgba(34,211,238,0.4)]"28 w-auto drop-shadow-[0_0_35px_rgba(34,211,238,0.35)]"
+                className="h-36 w-auto drop-shadow-[0_0_40px_rgba(34,211,238,0.4)]"
               />
             </Link>
           </div>
@@ -108,6 +110,7 @@ export default function HomePage() {
               Upload Sample
             </Link>
           </div>
+
         </header>
 
         {/* title */}
@@ -117,11 +120,11 @@ export default function HomePage() {
           </div>
 
           <p className="mt-2 max-w-xl text-center text-sm text-slate-400">
-            Upload sand images and instantly generate sieve analysis.
+            Upload grain images and instantly generate sieve analysis.
           </p>
         </div>
 
-        {/* a bit more gap below title */}
+        {/* stage buttons */}
         <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, i) => {
             const active = i === activeIndex;
@@ -143,6 +146,7 @@ export default function HomePage() {
           })}
         </div>
 
+        {/* columns */}
         <div className="mt-4 grid gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, colIndex) => {
             const active = colIndex === activeIndex;
@@ -187,6 +191,7 @@ export default function HomePage() {
           })}
         </div>
 
+        {/* CTA */}
         <div className="flex justify-center pb-6 pt-8">
           <Link
             href="/upload"
@@ -195,6 +200,7 @@ export default function HomePage() {
             Upload Your Sample
           </Link>
         </div>
+
       </section>
     </main>
   );
