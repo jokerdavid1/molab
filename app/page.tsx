@@ -98,22 +98,12 @@ export default function HomePage() {
           sieve interpretation, and particle size distribution analysis.
         </p>
 
-        <div className="mt-8 text-center">
-          <h2 className="text-2xl font-semibold sm:text-3xl">
-            {currentStage.title}
-          </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
-            {currentStage.description}
-          </p>
-        </div>
-
         <div
-          className={`mt-10 w-full transform transition-all ease-out ${
+          className={`mt-6 w-full transform transition-all ease-out ${
             visible ? "scale-100 opacity-100" : "scale-[0.985] opacity-0"
           }`}
           style={{ transitionDuration: `${FADE_DURATION}ms` }}
         >
-          {/* Fixed outer frame for ALL stages */}
           <div className="mx-auto w-full max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
             <div className="flex h-[62vh] min-h-[520px] w-full items-center justify-center rounded-2xl bg-black/20 p-4">
               {currentStage.single ? (
@@ -124,7 +114,7 @@ export default function HomePage() {
                     width={1400}
                     height={900}
                     priority
-                    className="max-h-full w-auto max-w-full object-contain rounded-2xl"
+                    className="max-h-full w-auto max-w-full rounded-2xl object-contain"
                   />
                 </div>
               ) : (
@@ -140,7 +130,7 @@ export default function HomePage() {
                         width={900}
                         height={600}
                         priority
-                        className="max-h-full w-auto max-w-full object-contain rounded-xl"
+                        className="max-h-full w-auto max-w-full rounded-xl object-contain"
                       />
                     </div>
                   ))}
@@ -150,7 +140,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           {STAGES.map((stage, i) => (
             <button
               key={stage.key}
