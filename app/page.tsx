@@ -51,6 +51,7 @@ export default function HomePage() {
 
   useEffect(() => {
     startAutoCycle();
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -61,19 +62,16 @@ export default function HomePage() {
   };
 
   return (
-    <main className="relative h-screen overflow-hidden bg-[#020617] text-white">
-      
+    <main className="relative min-h-screen bg-[#020617] text-white">
       {/* background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_25%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
         <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:44px_44px]" />
       </div>
 
-      <section className="relative mx-auto flex h-screen max-w-[1800px] flex-col px-4 py-3 sm:px-6 lg:px-8">
-
+      <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 py-3 sm:px-6 lg:px-8">
         {/* HEADER */}
         <header className="grid grid-cols-[1fr_auto_1fr] items-center pt-2">
-
           {/* logo */}
           <div className="flex items-center">
             <Link href="/">
@@ -90,16 +88,16 @@ export default function HomePage() {
 
           {/* center nav */}
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
-            <Link href="/technology" className="hover:text-cyan-300 transition">
+            <Link href="/technology" className="transition hover:text-cyan-300">
               Technology
             </Link>
-            <Link href="/services" className="hover:text-cyan-300 transition">
+            <Link href="/services" className="transition hover:text-cyan-300">
               Services
             </Link>
-            <Link href="/about" className="hover:text-cyan-300 transition">
+            <Link href="/about" className="transition hover:text-cyan-300">
               About
             </Link>
-            <Link href="/contact" className="hover:text-cyan-300 transition">
+            <Link href="/contact" className="transition hover:text-cyan-300">
               Contact
             </Link>
           </nav>
@@ -115,7 +113,7 @@ export default function HomePage() {
           </div>
         </header>
 
-        {/* heading */}
+        {/* HERO */}
         <div className="mt-4 flex flex-col items-center">
           <div className="mb-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.28em] text-cyan-300">
             AI-Powered Grain Analysis
@@ -130,7 +128,7 @@ export default function HomePage() {
 
           <p className="mt-3 max-w-3xl text-center text-slate-300">
             A premium workflow for grain imaging, contour detection, particle
-            sorting and final sieve + PSD interpretation.
+            sorting and final sieve plus PSD interpretation.
           </p>
         </div>
 
@@ -140,24 +138,50 @@ export default function HomePage() {
             const active = i === activeIndex;
 
             return (
-              <div key={col.key} className="flex justify-center">
+              <div key={col.key} className="relative flex items-center justify-center">
                 <button
                   onClick={() => handleActivate(i)}
-                  className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all ${
+                  className={`relative rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
                     active
-                      ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200"
-                      : "border-white/10 bg-white/5 text-slate-400"
+                      ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.20)]"
+                      : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-slate-200"
                   }`}
                 >
                   {col.label}
                 </button>
+
+                {i < COLUMNS.length - 1 && (
+                  <div className="pointer-events-none absolute right-[-16px] top-1/2 z-10 hidden -translate-y-1/2 xl:flex items-center">
+                    <div
+                      className={`h-px w-8 transition-all duration-500 ${
+                        active
+                          ? "bg-gradient-to-r from-cyan-300/40 to-cyan-200"
+                          : "bg-gradient-to-r from-white/10 to-slate-500/40"
+                      }`}
+                    />
+                    <svg
+                      className={`h-4 w-4 transition-all duration-500 ${
+                        active ? "scale-110 text-cyan-300" : "text-slate-500"
+                      }`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M5 12h14" />
+                      <path d="M13 6l6 6-6 6" />
+                    </svg>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
         {/* columns */}
-        <div className="mt-4 grid flex-1 grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="mt-4 grid gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, colIndex) => {
             const active = colIndex === activeIndex;
 
@@ -165,37 +189,52 @@ export default function HomePage() {
               <button
                 key={col.key}
                 onClick={() => handleActivate(colIndex)}
-                className={`flex flex-col rounded-[28px] border p-3 transition-all duration-700 ${
+                className={`relative flex min-h-[420px] flex-col rounded-[28px] border p-3 text-left transition-all duration-700 ease-out ${
                   active
-                    ? "scale-[1.015] border-cyan-300/40 bg-white/[0.08]"
+                    ? "scale-[1.015] border-cyan-300/40 bg-white/[0.08] opacity-100 shadow-[0_24px_70px_rgba(34,211,238,0.12)]"
                     : "scale-[0.985] border-white/10 bg-white/[0.04] opacity-40"
                 }`}
+                aria-label={`Activate ${col.label}`}
+                type="button"
               >
                 <div className="grid flex-1 grid-cols-1 gap-3">
                   {col.images.map((src, imgIndex) => (
                     <div
-                      key={imgIndex}
-                      className="flex items-center justify-center rounded-[22px] border border-white/10 bg-black/25"
+                      key={`${col.key}-${imgIndex}`}
+                      className={`group relative flex min-h-[190px] flex-1 items-center justify-center overflow-hidden rounded-[22px] border transition-all duration-700 ${
+                        active
+                          ? "border-white/15 bg-black/25"
+                          : "border-white/5 bg-black/20"
+                      }`}
                     >
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))]" />
+
                       <Image
                         src={src}
-                        alt=""
+                        alt={`${col.label} ${imgIndex + 1}`}
                         width={900}
                         height={600}
-                        className={`object-contain p-2 transition-all duration-700 ${
+                        priority
+                        className={`relative z-10 h-full max-h-[260px] w-full object-contain p-2 transition-all duration-700 ${
                           active ? "scale-110" : "scale-95"
                         }`}
                       />
                     </div>
                   ))}
                 </div>
+
+                <div
+                  className={`pointer-events-none absolute inset-x-6 bottom-1 h-8 rounded-full blur-2xl transition ${
+                    active ? "bg-cyan-400/20 opacity-100" : "opacity-0"
+                  }`}
+                />
               </button>
             );
           })}
         </div>
 
         {/* MAIN CTA */}
-        <div className="flex justify-center pb-4 pt-6">
+        <div className="flex justify-center pb-6 pt-8">
           <Link
             href="/upload"
             className="rounded-full bg-cyan-400 px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
