@@ -81,8 +81,8 @@ export default function HomePage() {
               <Image
                 src="/logo/logo.png"
                 alt="MoLab"
-                width={420}
-                height={160}
+                width={520}
+                height={200}
                 priority
                 className="max-h-24 w-auto drop-shadow-[0_0_25px_rgba(34,211,238,0.35)]"
               />
