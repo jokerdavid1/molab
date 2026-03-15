@@ -51,6 +51,7 @@ export default function HomePage() {
 
   useEffect(() => {
     startAutoCycle();
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -62,18 +63,18 @@ export default function HomePage() {
 
   return (
     <main className="relative min-h-screen bg-[#020617] text-white">
-      
+
       {/* background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_25%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
         <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:44px_44px]" />
       </div>
 
-      <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 py-3 sm:px-6 lg:px-8">
-        
+      <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-3 sm:px-6 lg:px-8">
+
         {/* HEADER */}
-        <header className="grid grid-cols-[1fr_auto_1fr] items-center pt-2">
-          
+        <header className="grid grid-cols-[1fr_auto_1fr] items-center">
+
           {/* LOGO */}
           <div className="flex items-center">
             <Link href="/">
@@ -113,70 +114,62 @@ export default function HomePage() {
               Upload Sample
             </Link>
           </div>
+
         </header>
 
-        {/* HERO TITLE */}
-        <div className="mt-6 flex flex-col items-center">
-          
-          <div className="mb-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.28em] text-cyan-300">
-            AI-Powered Grain Analysis
-          </div>
-
-          <h1 className="max-w-6xl text-center text-4xl font-semibold leading-tight tracking-[-0.03em] lg:text-6xl">
-            From Grain Images to{" "}
-            <span className="bg-gradient-to-r from-white via-cyan-200 to-sky-400 bg-clip-text text-transparent">
-              PSD Results
-            </span>
-          </h1>
-
-        </div>
-
         {/* STAGE BUTTONS */}
-        <div className="mt-8 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, i) => {
             const active = i === activeIndex;
 
             return (
-              <div key={col.key} className="flex items-center justify-center">
+              <div key={col.key} className="relative flex items-center justify-center">
+
                 <button
                   onClick={() => handleActivate(i)}
-                  className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
+                  className={`relative rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
                     active
-                      ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200"
-                      : "border-white/10 bg-white/5 text-slate-400"
+                      ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.20)]"
+                      : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-slate-200"
                   }`}
                 >
                   {col.label}
                 </button>
+
               </div>
             );
           })}
         </div>
 
-        {/* IMAGE COLUMNS */}
+        {/* PIPELINE COLUMNS */}
         <div className="mt-4 grid gap-3 xl:grid-cols-4">
+
           {COLUMNS.map((col, colIndex) => {
+
             const active = colIndex === activeIndex;
 
             return (
               <button
                 key={col.key}
                 onClick={() => handleActivate(colIndex)}
-                className={`relative flex min-h-[420px] flex-col rounded-[28px] border p-3 transition-all duration-700 ${
+                className={`relative flex min-h-[460px] flex-col rounded-[28px] border p-3 transition-all duration-700 ${
                   active
                     ? "scale-[1.02] border-cyan-300/40 bg-white/[0.08] shadow-[0_24px_70px_rgba(34,211,238,0.12)]"
                     : "scale-[0.98] border-white/10 bg-white/[0.04] opacity-40"
                 }`}
               >
+
                 <div className="grid flex-1 gap-3">
+
                   {col.images.map((src, imgIndex) => (
                     <div
                       key={`${col.key}-${imgIndex}`}
-                      className="flex min-h-[190px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
+                      className="flex min-h-[200px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
                     >
+
                       <Image
                         src={src}
-                        alt=""
+                        alt={`${col.label} ${imgIndex + 1}`}
                         width={900}
                         height={600}
                         priority
@@ -184,22 +177,35 @@ export default function HomePage() {
                           active ? "scale-110" : "scale-95"
                         }`}
                       />
+
                     </div>
                   ))}
+
                 </div>
+
+                <div
+                  className={`pointer-events-none absolute inset-x-6 bottom-1 h-8 rounded-full blur-2xl transition ${
+                    active ? "bg-cyan-400/20 opacity-100" : "opacity-0"
+                  }`}
+                />
+
               </button>
             );
+
           })}
+
         </div>
 
-        {/* MAIN CTA */}
+        {/* CTA */}
         <div className="flex justify-center pb-6 pt-8">
+
           <Link
             href="/upload"
             className="rounded-full bg-cyan-400 px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
           >
             Upload Your Sample
           </Link>
+
         </div>
 
       </section>
