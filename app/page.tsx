@@ -77,10 +77,10 @@ export default function HomePage() {
               <Image
                 src="/logo/logo.png"
                 alt="MoLab"
-                width={800}
-                height={300}
+                width={1040}
+                height={390}
                 priority
-                className="h-28 w-auto drop-shadow-[0_0_35px_rgba(34,211,238,0.35)]"
+                className="h-36 w-auto drop-shadow-[0_0_40px_rgba(34,211,238,0.4)]"28 w-auto drop-shadow-[0_0_35px_rgba(34,211,238,0.35)]"
               />
             </Link>
           </div>
