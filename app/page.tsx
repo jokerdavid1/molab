@@ -71,7 +71,7 @@ export default function HomePage() {
 
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-3 sm:px-6 lg:px-8">
         {/* header */}
-        <header className="grid h-24 grid-cols-[1fr_auto_1fr] items-center">
+        <header className="grid h-32 grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex items-center">
             <Link href="/">
               <Image
@@ -112,7 +112,7 @@ export default function HomePage() {
 
         {/* title */}
         <div className="mt-1 flex flex-col items-center">
-          <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-5 py-1.5 text-sm uppercase tracking-[0.35em] text-cyan-300">
+          <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-6 py-2 text-base uppercase tracking-[0.35em] text-cyan-300">
             AI SAND ANALYSIS
           </div>
 
