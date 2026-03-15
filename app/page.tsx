@@ -51,7 +51,6 @@ export default function HomePage() {
 
   useEffect(() => {
     startAutoCycle();
-
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -64,7 +63,7 @@ export default function HomePage() {
   return (
     <main className="relative min-h-screen bg-[#020617] text-white">
 
-      {/* background */}
+      {/* BACKGROUND */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_25%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
         <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:44px_44px]" />
@@ -84,12 +83,12 @@ export default function HomePage() {
                 width={520}
                 height={200}
                 priority
-                className="max-h-24 w-auto drop-shadow-[0_0_25px_rgba(34,211,238,0.35)]"
+                className="max-h-32 w-auto drop-shadow-[0_0_28px_rgba(34,211,238,0.35)]"
               />
             </Link>
           </div>
 
-          {/* NAV */}
+          {/* NAVIGATION */}
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
             <Link href="/technology" className="transition hover:text-cyan-300">
               Technology
@@ -117,19 +116,27 @@ export default function HomePage() {
 
         </header>
 
+        {/* AI SAND ANALYSIS BADGE */}
+        <div className="mt-4 flex justify-center">
+          <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1 text-xs uppercase tracking-[0.3em] text-cyan-300">
+            AI SAND ANALYSIS
+          </div>
+        </div>
+
         {/* STAGE BUTTONS */}
         <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+
           {COLUMNS.map((col, i) => {
             const active = i === activeIndex;
 
             return (
-              <div key={col.key} className="relative flex items-center justify-center">
+              <div key={col.key} className="flex items-center justify-center">
 
                 <button
                   onClick={() => handleActivate(i)}
-                  className={`relative rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
+                  className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
                     active
-                      ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.20)]"
+                      ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200"
                       : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-slate-200"
                   }`}
                 >
@@ -139,9 +146,10 @@ export default function HomePage() {
               </div>
             );
           })}
+
         </div>
 
-        {/* PIPELINE COLUMNS */}
+        {/* PIPELINE */}
         <div className="mt-4 grid gap-3 xl:grid-cols-4">
 
           {COLUMNS.map((col, colIndex) => {
