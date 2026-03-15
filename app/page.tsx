@@ -77,8 +77,8 @@ export default function HomePage() {
               <Image
                 src="/logo/logo.png"
                 alt="MoLab"
-                width={620}
-                height={240}
+                width={700}
+                height={300}
                 priority
                 className="h-20 w-auto drop-shadow-[0_0_30px_rgba(34,211,238,0.35)]"
               />
@@ -117,7 +117,7 @@ export default function HomePage() {
           </div>
 
           <p className="mt-2 max-w-xl text-center text-sm text-slate-400">
-            Upload grain images and instantly generate sieve and PSD analysis.
+            Upload sand images and instantly generate sieve analysis.
           </p>
         </div>
 
