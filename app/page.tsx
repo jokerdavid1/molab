@@ -51,6 +51,7 @@ export default function HomePage() {
 
   useEffect(() => {
     startAutoCycle();
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -62,19 +63,13 @@ export default function HomePage() {
 
   return (
     <main className="relative min-h-screen bg-[#020617] text-white">
-
-      {/* BACKGROUND */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_25%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
         <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:44px_44px]" />
       </div>
 
-      <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-1 pb-3 sm:px-6 lg:px-8">
-
-        {/* HEADER */}
+      <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-3 sm:px-6 lg:px-8">
         <header className="grid grid-cols-[1fr_auto_1fr] items-center">
-
-          {/* LOGO */}
           <div className="flex items-center">
             <Link href="/">
               <Image
@@ -88,7 +83,6 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* NAVIGATION */}
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
             <Link href="/technology" className="transition hover:text-cyan-300">
               Technology
@@ -104,7 +98,6 @@ export default function HomePage() {
             </Link>
           </nav>
 
-          {/* UPLOAD BUTTON */}
           <div className="flex justify-end">
             <Link
               href="/upload"
@@ -113,25 +106,20 @@ export default function HomePage() {
               Upload Sample
             </Link>
           </div>
-
         </header>
 
-        {/* TITLE */}
-        <div className="mt-2 flex justify-center">
+        <div className="mt-1 flex justify-center">
           <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-5 py-1.5 text-sm uppercase tracking-[0.35em] text-cyan-300">
             AI SAND ANALYSIS
           </div>
         </div>
 
-        {/* STAGE BUTTONS */}
-        <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-
+        <div className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, i) => {
             const active = i === activeIndex;
 
             return (
               <div key={col.key} className="flex items-center justify-center">
-
                 <button
                   onClick={() => handleActivate(i)}
                   className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
@@ -142,18 +130,13 @@ export default function HomePage() {
                 >
                   {col.label}
                 </button>
-
               </div>
             );
           })}
-
         </div>
 
-        {/* PIPELINE */}
-        <div className="mt-4 grid gap-3 xl:grid-cols-4">
-
+        <div className="mt-3 grid gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, colIndex) => {
-
             const active = colIndex === activeIndex;
 
             return (
@@ -166,15 +149,12 @@ export default function HomePage() {
                     : "scale-[0.98] border-white/10 bg-white/[0.04] opacity-40"
                 }`}
               >
-
                 <div className="grid flex-1 gap-3">
-
                   {col.images.map((src, imgIndex) => (
                     <div
                       key={`${col.key}-${imgIndex}`}
                       className="flex min-h-[200px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
                     >
-
                       <Image
                         src={src}
                         alt={`${col.label} ${imgIndex + 1}`}
@@ -185,10 +165,8 @@ export default function HomePage() {
                           active ? "scale-110" : "scale-95"
                         }`}
                       />
-
                     </div>
                   ))}
-
                 </div>
 
                 <div
@@ -196,26 +174,19 @@ export default function HomePage() {
                     active ? "bg-cyan-400/20 opacity-100" : "opacity-0"
                   }`}
                 />
-
               </button>
             );
-
           })}
-
         </div>
 
-        {/* CTA */}
         <div className="flex justify-center pb-6 pt-8">
-
           <Link
             href="/upload"
             className="rounded-full bg-cyan-400 px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
           >
             Upload Your Sample
           </Link>
-
         </div>
-
       </section>
     </main>
   );
