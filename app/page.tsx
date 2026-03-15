@@ -6,52 +6,33 @@ import { useEffect, useState } from "react";
 type Stage = {
   key: string;
   title: string;
-  description: string;
   images: string[];
-  single?: boolean;
 };
 
 const STAGES: Stage[] = [
   {
     key: "raw",
     title: "Raw Grain Images",
-    description:
-      "Original microscope captures of grains before contour extraction and classification.",
     images: ["/demo/grain_1.png", "/demo/grain_2.png"],
   },
   {
     key: "contour",
     title: "Grain + Contour Detection",
-    description:
-      "Detected contours isolate particles and prepare them for digital analysis.",
     images: ["/demo/gc_1.png", "/demo/gc_2.png"],
   },
   {
     key: "sorted",
     title: "Sorted Grain Images",
-    description:
-      "Particles are organized into structured groups for digital sieve interpretation.",
     images: ["/demo/sort_1.png", "/demo/sort_2.png"],
   },
   {
-    key: "sieve",
-    title: "Sieve Representation",
-    description:
-      "The image-based workflow is translated into a sieve-style lab result.",
-    images: ["/demo/sieve.png"],
-    single: true,
-  },
-  {
-    key: "psd",
-    title: "Particle Size Distribution",
-    description:
-      "Final PSD output showing the grain size distribution in a clean visual chart.",
-    images: ["/demo/psd.png"],
-    single: true,
+    key: "results",
+    title: "Sieve + PSD Results",
+    images: ["/demo/sieve.png", "/demo/psd.png"],
   },
 ];
 
-const STAGE_DURATION = 2200;
+const STAGE_DURATION = 2400;
 const FADE_DURATION = 350;
 
 export default function HomePage() {
@@ -98,49 +79,8 @@ export default function HomePage() {
           sieve interpretation, and particle size distribution analysis.
         </p>
 
-        <div
-          className={`mt-6 w-full transform transition-all ease-out ${
-            visible ? "scale-100 opacity-100" : "scale-[0.985] opacity-0"
-          }`}
-          style={{ transitionDuration: `${FADE_DURATION}ms` }}
-        >
-          <div className="mx-auto w-full max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
-            <div className="flex h-[62vh] min-h-[520px] w-full items-center justify-center rounded-2xl bg-black/20 p-4">
-              {currentStage.single ? (
-                <div className="flex h-full w-full items-center justify-center">
-                  <Image
-                    src={currentStage.images[0]}
-                    alt={currentStage.title}
-                    width={1400}
-                    height={900}
-                    priority
-                    className="max-h-full w-auto max-w-full rounded-2xl object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="grid h-full w-full grid-cols-1 gap-6 md:grid-cols-2">
-                  {currentStage.images.map((src, index) => (
-                    <div
-                      key={`${currentStage.key}-${index}`}
-                      className="flex h-full items-center justify-center overflow-hidden rounded-2xl bg-black/20 p-3"
-                    >
-                      <Image
-                        src={src}
-                        alt={`${currentStage.title} ${index + 1}`}
-                        width={900}
-                        height={600}
-                        priority
-                        className="max-h-full w-auto max-w-full rounded-xl object-contain"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+        {/* Stage buttons ABOVE images */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           {STAGES.map((stage, i) => (
             <button
               key={stage.key}
@@ -160,6 +100,35 @@ export default function HomePage() {
               {stage.title}
             </button>
           ))}
+        </div>
+
+        <div
+          className={`mt-6 w-full transform transition-all ease-out ${
+            visible ? "scale-100 opacity-100" : "scale-[0.985] opacity-0"
+          }`}
+          style={{ transitionDuration: `${FADE_DURATION}ms` }}
+        >
+          <div className="mx-auto w-full max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
+            <div className="flex h-[62vh] min-h-[520px] w-full items-center justify-center rounded-2xl bg-black/20 p-4">
+              <div className="grid h-full w-full grid-cols-1 gap-6 md:grid-cols-2">
+                {currentStage.images.map((src, index) => (
+                  <div
+                    key={`${currentStage.key}-${index}`}
+                    className="flex h-full items-center justify-center overflow-hidden rounded-2xl bg-black/20 p-3"
+                  >
+                    <Image
+                      src={src}
+                      alt={`${currentStage.title} ${index + 1}`}
+                      width={900}
+                      height={600}
+                      priority
+                      className="max-h-full w-auto max-w-full rounded-xl object-contain"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
