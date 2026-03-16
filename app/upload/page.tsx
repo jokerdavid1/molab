@@ -4,13 +4,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChangeEvent, useMemo, useRef, useState } from "react";
 
+type SieveRow = {
+  mesh: string;
+  percent: number;
+};
+
 type AnalysisResponse = {
   status?: string;
-  total_files?: number;
-  files?: string[];
   job_id?: string;
-  uploaded_files?: string[];
-  analysis_result?: unknown;
+  total_files?: number;
+  total_grains?: number;
+  processing_time_seconds?: number;
+  sieve_results?: SieveRow[];
+  zip_url?: string;
   error?: string;
 };
 
@@ -21,9 +27,14 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  const secondsPerImage = 10;
+
+  const estimatedSeconds = useMemo(() => {
+    return files.length * secondsPerImage;
+  }, [files.length]);
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
-
     if (selected.length === 0) return;
 
     setFiles((prev) => {
@@ -49,6 +60,8 @@ export default function UploadPage() {
 
   const removeFile = (indexToRemove: number) => {
     setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+    setError(null);
+    setResult(null);
   };
 
   const totalFilesText = useMemo(() => {
@@ -119,21 +132,11 @@ export default function UploadPage() {
           </div>
 
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
-            <Link href="/" className="transition hover:text-cyan-300">
-              Home
-            </Link>
-            <Link href="/technology" className="transition hover:text-cyan-300">
-              Technology
-            </Link>
-            <Link href="/services" className="transition hover:text-cyan-300">
-              Services
-            </Link>
-            <Link href="/about" className="transition hover:text-cyan-300">
-              About
-            </Link>
-            <Link href="/contact" className="transition hover:text-cyan-300">
-              Contact
-            </Link>
+            <Link href="/" className="transition hover:text-cyan-300">Home</Link>
+            <Link href="/technology" className="transition hover:text-cyan-300">Technology</Link>
+            <Link href="/services" className="transition hover:text-cyan-300">Services</Link>
+            <Link href="/about" className="transition hover:text-cyan-300">About</Link>
+            <Link href="/contact" className="transition hover:text-cyan-300">Contact</Link>
           </nav>
 
           <div className="flex justify-end">
@@ -183,6 +186,12 @@ export default function UploadPage() {
 
               <p className="mt-5 text-sm text-slate-300">{totalFilesText}</p>
 
+              {files.length > 0 && (
+                <p className="mt-2 text-sm text-cyan-300">
+                  Estimated time: {estimatedSeconds} second{estimatedSeconds !== 1 ? "s" : ""}
+                </p>
+              )}
+
               <div className="mt-4 text-sm text-slate-500">
                 Supported formats: PNG, JPG, JPEG
               </div>
@@ -231,13 +240,78 @@ export default function UploadPage() {
 
               {result && (
                 <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-                  <h3 className="text-base font-medium text-emerald-200">
-                    Analysis response received
+                  <h3 className="text-lg font-medium text-emerald-200">
+                    Analysis Completed
                   </h3>
 
-                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-sm text-slate-200">
-                    {JSON.stringify(result, null, 2)}
-                  </pre>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">Files</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">
+                        {result.total_files ?? 0}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">Total Grains</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">
+                        {result.total_grains ?? 0}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">Processing Time</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">
+                        {result.processing_time_seconds?.toFixed(1) ?? "0.0"} s
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <h4 className="text-base font-medium text-white">Sieve Result Table</h4>
+
+                    <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
+                      <table className="min-w-full divide-y divide-white/10">
+                        <thead className="bg-white/[0.04]">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Mesh</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Percent (%)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/10 bg-black/20">
+                          {result.sieve_results && result.sieve_results.length > 0 ? (
+                            result.sieve_results.map((row, index) => (
+                              <tr key={`${row.mesh}-${index}`}>
+                                <td className="px-4 py-3 text-sm text-slate-200">{row.mesh}</td>
+                                <td className="px-4 py-3 text-sm text-slate-200">
+                                  {row.percent.toFixed(2)}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={2} className="px-4 py-4 text-sm text-slate-400">
+                                No sieve results available.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {result.zip_url && (
+                    <div className="mt-6 flex justify-center">
+                      <a
+                        href={result.zip_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
+                      >
+                        Download Results ZIP
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
