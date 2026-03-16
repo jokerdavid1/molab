@@ -184,19 +184,12 @@ export default function ServicesPage() {
                 the right workflow for your project.
               </p>
 
-              <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <div className="mt-8 flex justify-center">
                 <Link
                   href="/contact"
                   className="rounded-full bg-cyan-400 px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
                 >
                   Contact Us
-                </Link>
-
-                <Link
-                  href="/upload"
-                  className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-8 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.12)] transition hover:scale-105 hover:bg-cyan-400/20"
-                >
-                  Upload Sample
                 </Link>
               </div>
             </div>
