@@ -7,8 +7,7 @@ const SERVICES = [
   {
     title: "Virtual Sieve Analysis",
     badge: "Available Now",
-    badgeClass:
-      "border-cyan-300/30 bg-cyan-400/15 text-cyan-200",
+    badgeClass: "border-cyan-300/30 bg-cyan-400/15 text-cyan-200",
     description:
       "Upload grain images and receive automated particle size classification with sieve-style distribution outputs. This service is designed to support fast and repeatable digital sand analysis.",
     points: [
@@ -20,8 +19,7 @@ const SERVICES = [
   {
     title: "Roundness Analysis",
     badge: "Coming Soon",
-    badgeClass:
-      "border-amber-300/25 bg-amber-400/10 text-amber-200",
+    badgeClass: "border-amber-300/25 bg-amber-400/10 text-amber-200",
     description:
       "Advanced grain shape analysis for evaluating roundness and particle morphology from uploaded images. This feature is currently in development and will be added to the platform soon.",
     points: [
@@ -33,8 +31,7 @@ const SERVICES = [
   {
     title: "Volumetric Pile Calculations",
     badge: "Available",
-    badgeClass:
-      "border-cyan-300/30 bg-cyan-400/15 text-cyan-200",
+    badgeClass: "border-cyan-300/30 bg-cyan-400/15 text-cyan-200",
     description:
       "Calculate stockpile volumes using drone imagery, photogrammetry, and 3D surface reconstruction workflows. This service supports accurate pile measurement for operational and inventory purposes.",
     points: [
@@ -46,8 +43,7 @@ const SERVICES = [
   {
     title: "Sand Resource Modeling & Tonnage Estimation",
     badge: "Available",
-    badgeClass:
-      "border-cyan-300/30 bg-cyan-400/15 text-cyan-200",
+    badgeClass: "border-cyan-300/30 bg-cyan-400/15 text-cyan-200",
     description:
       "Build 3D resource models from drilling data to estimate sand distribution, deposit geometry, and tonnage. This service supports technical evaluation of sand resources at the deposit scale.",
     points: [
@@ -170,14 +166,41 @@ export default function ServicesPage() {
           </div>
         </div>
 
-        {/* CTA */}
-        <div className="flex justify-center pb-2 pt-10">
-          <Link
-            href="/upload"
-            className="rounded-full bg-cyan-400 px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
-          >
-            Upload Your Sample
-          </Link>
+        {/* Contact Section */}
+        <div className="mx-auto mt-10 w-full max-w-5xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
+          <div className="rounded-[24px] border border-cyan-300/15 bg-black/20 px-6 py-8 text-center sm:px-10">
+            <div className="mx-auto max-w-3xl">
+              <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-5 py-2 text-sm uppercase tracking-[0.28em] text-cyan-300">
+                Contact Us
+              </div>
+
+              <h2 className="mt-5 text-2xl font-semibold text-white sm:text-3xl">
+                Let&apos;s discuss your sand analysis project
+              </h2>
+
+              <p className="mt-4 text-base leading-8 text-slate-400">
+                Whether you need image-based grain analysis, stockpile
+                volumetrics, or 3D sand resource modeling, we can help you find
+                the right workflow for your project.
+              </p>
+
+              <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+                <Link
+                  href="/contact"
+                  className="rounded-full bg-cyan-400 px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
+                >
+                  Contact Us
+                </Link>
+
+                <Link
+                  href="/upload"
+                  className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-8 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.12)] transition hover:scale-105 hover:bg-cyan-400/20"
+                >
+                  Upload Sample
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
