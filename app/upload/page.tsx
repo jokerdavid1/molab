@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChangeEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type SieveRow = {
   mesh: string;
@@ -20,6 +20,13 @@ type AnalysisResponse = {
   error?: string;
 };
 
+type StatusResponse = {
+  status?: string;
+  processed_files?: number;
+  total_files?: number;
+  error?: string;
+};
+
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
 
@@ -28,9 +35,16 @@ export default function UploadPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [progressText, setProgressText] = useState<string | null>(null);
   const [progressPercent, setProgressPercent] = useState(0);
   const [currentStep, setCurrentStep] = useState("Idle");
+
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [phase, setPhase] = useState<"idle" | "uploading" | "processing" | "completed" | "failed">("idle");
+  const [processedImages, setProcessedImages] = useState(0);
+  const [finalTotalFiles, setFinalTotalFiles] = useState(0);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const estimatedSeconds = useMemo(
@@ -66,6 +80,10 @@ export default function UploadPage() {
     setProgressText(null);
     setProgressPercent(0);
     setCurrentStep("Idle");
+    setPhase("idle");
+    setProcessedImages(0);
+    setFinalTotalFiles(0);
+    setJobId(null);
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -79,6 +97,10 @@ export default function UploadPage() {
     setProgressText(null);
     setProgressPercent(0);
     setCurrentStep("Idle");
+    setPhase("idle");
+    setProcessedImages(0);
+    setFinalTotalFiles(0);
+    setJobId(null);
   };
 
   const chunkFiles = (inputFiles: File[], chunkSize: number) => {
@@ -89,6 +111,61 @@ export default function UploadPage() {
     return chunks;
   };
 
+  useEffect(() => {
+    if (!isLoading || !jobId || phase !== "processing") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/analyze/status/${jobId}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!res.ok) return;
+
+        const data: StatusResponse = await res.json();
+
+        const total = data.total_files ?? files.length;
+        const done = data.processed_files ?? 0;
+
+        setFinalTotalFiles(total);
+        setProcessedImages(done);
+
+        if (data.status === "processing") {
+          setCurrentStep("Processing images...");
+          setProgressText(
+            total > 0
+              ? `Image ${Math.min(done + 1, total)} of ${total}`
+              : "Processing images..."
+          );
+
+          const processingPercent =
+            total > 0 ? 70 + Math.round((done / total) * 25) : 75;
+
+          setProgressPercent(Math.min(processingPercent, 95));
+        }
+
+        if (data.status === "completed") {
+          clearInterval(interval);
+        }
+
+        if (data.status === "failed") {
+          clearInterval(interval);
+          setError(data.error || "Analysis failed.");
+          setPhase("failed");
+          setCurrentStep("Failed");
+          setProgressText(null);
+          setProgressPercent(0);
+          setIsLoading(false);
+        }
+      } catch {
+        // silent poll failure
+      }
+    }, 1200);
+
+    return () => clearInterval(interval);
+  }, [isLoading, jobId, phase, files.length]);
+
   const startAnalysis = async () => {
     if (files.length === 0) {
       setError("Please select at least one image.");
@@ -98,8 +175,13 @@ export default function UploadPage() {
     setIsLoading(true);
     setError(null);
     setResult(null);
-    setProgressText("Starting analysis job...");
-    setCurrentStep("Initializing job...");
+    setJobId(null);
+    setProcessedImages(0);
+    setFinalTotalFiles(files.length);
+
+    setPhase("uploading");
+    setProgressText("Uploading images...");
+    setCurrentStep("Preparing upload...");
     setProgressPercent(5);
 
     try {
@@ -113,17 +195,19 @@ export default function UploadPage() {
         throw new Error(startData?.error || "Failed to start job.");
       }
 
-      const jobId = startData.job_id as string;
+      const newJobId = startData.job_id as string;
+      setJobId(newJobId);
+
       const fileChunks = chunkFiles(files, BATCH_SIZE);
 
       for (let i = 0; i < fileChunks.length; i++) {
         const batch = fileChunks[i];
 
-        setCurrentStep(`Uploading batch ${i + 1} of ${fileChunks.length}`);
-        setProgressText(`Uploading batch ${i + 1} of ${fileChunks.length}...`);
+        setCurrentStep("Uploading images...");
+        setProgressText("Uploading images...");
 
         const uploadProgress =
-          10 + Math.round(((i + 1) / fileChunks.length) * 50);
+          10 + Math.round(((i + 1) / fileChunks.length) * 55);
         setProgressPercent(uploadProgress);
 
         const formData = new FormData();
@@ -131,7 +215,7 @@ export default function UploadPage() {
           formData.append("files", file);
         });
 
-        const uploadRes = await fetch(`/api/analyze/upload/${jobId}`, {
+        const uploadRes = await fetch(`/api/analyze/upload/${newJobId}`, {
           method: "POST",
           body: formData,
         });
@@ -147,11 +231,12 @@ export default function UploadPage() {
         }
       }
 
-      setCurrentStep("Running GPU analysis...");
-      setProgressText("Running analysis on uploaded images...");
-      setProgressPercent(75);
+      setPhase("processing");
+      setCurrentStep("Processing images...");
+      setProgressText(`Image 1 of ${files.length}`);
+      setProgressPercent(70);
 
-      const completeRes = await fetch(`/api/analyze/complete/${jobId}`, {
+      const completeRes = await fetch(`/api/analyze/complete/${newJobId}`, {
         method: "POST",
       });
 
@@ -165,13 +250,13 @@ export default function UploadPage() {
         );
       }
 
-      setCurrentStep("Preparing results...");
-      setProgressPercent(95);
-
       setResult(completeData);
+      setPhase("completed");
       setProgressText("Analysis completed.");
       setCurrentStep("Completed");
       setProgressPercent(100);
+      setProcessedImages(completeData.total_files ?? files.length);
+      setFinalTotalFiles(completeData.total_files ?? files.length);
     } catch (err) {
       setError(
         err instanceof Error
@@ -181,10 +266,14 @@ export default function UploadPage() {
       setProgressText(null);
       setCurrentStep("Failed");
       setProgressPercent(0);
+      setPhase("failed");
     } finally {
       setIsLoading(false);
     }
   };
+
+  const showBottomSummary = files.length > 0 && !result;
+  const displayTotal = finalTotalFiles || files.length;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
@@ -244,8 +333,7 @@ export default function UploadPage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            Upload all grain images you want to analyze in one premium batch
-            workflow.
+            Upload all grain images you want to analyze in one premium batch workflow.
           </p>
         </div>
 
@@ -273,20 +361,6 @@ export default function UploadPage() {
                   />
                 </label>
               </div>
-
-              <p className="mt-5 text-sm text-slate-300">{totalFilesText}</p>
-
-              {files.length > 0 && (
-                <>
-                  <p className="mt-2 text-sm text-cyan-300">
-                    Estimated time: {estimatedSeconds} second
-                    {estimatedSeconds !== 1 ? "s" : ""}
-                  </p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Uploads are sent automatically in batches of {BATCH_SIZE}.
-                  </p>
-                </>
-              )}
 
               <div className="mt-4 text-sm text-slate-500">
                 Supported formats: PNG, JPG, JPEG
@@ -321,7 +395,7 @@ export default function UploadPage() {
                 ))}
               </div>
 
-              <div className="mt-6 flex justify-center">
+              <div className="mt-6 flex flex-col items-center">
                 <button
                   type="button"
                   onClick={startAnalysis}
@@ -330,36 +404,73 @@ export default function UploadPage() {
                 >
                   {isLoading ? "Processing Sample..." : "Start Analysis"}
                 </button>
+
+                {showBottomSummary && (
+                  <div className="mt-4 text-center">
+                    <p className="text-sm text-slate-300">{totalFilesText}</p>
+                    <p className="mt-1 text-sm text-cyan-300">
+                      Estimated time: {estimatedSeconds} second{estimatedSeconds !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {(isLoading || progressText) && (
+          {(isLoading || progressText || phase === "completed") && (
             <div className="mt-6 overflow-hidden rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-blue-500/10 p-5 shadow-[0_0_40px_rgba(34,211,238,0.08)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="animate-pulse text-xs uppercase tracking-[0.25em] text-cyan-300">
-                    Processing
+                  <p
+                    className={`text-xs uppercase tracking-[0.25em] ${
+                      phase === "completed" ? "text-emerald-300" : "animate-pulse text-cyan-300"
+                    }`}
+                  >
+                    {phase === "completed" ? "Completed" : "Processing"}
                   </p>
+
                   <p className="mt-2 text-lg font-medium text-white">
                     {currentStep}
                   </p>
+
                   {progressText && (
-                    <p className="mt-1 text-sm text-slate-400">
-                      {progressText}
-                    </p>
+                    <p className="mt-1 text-sm text-slate-400">{progressText}</p>
                   )}
                 </div>
 
-                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.12)]">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+                <div
+                  className={`flex h-14 w-14 items-center justify-center rounded-full border shadow-[0_0_30px_rgba(34,211,238,0.12)] ${
+                    phase === "completed"
+                      ? "border-emerald-300/30 bg-emerald-400/10"
+                      : "border-cyan-300/20 bg-cyan-400/10"
+                  }`}
+                >
+                  {phase === "completed" ? (
+                    <svg
+                      className="h-7 w-7 text-emerald-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+                  )}
                 </div>
               </div>
 
               <div className="mt-5">
                 <div className="h-3 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500 transition-all duration-500 ease-out"
+                    className={`h-full rounded-full transition-all duration-500 ease-out ${
+                      phase === "completed"
+                        ? "bg-gradient-to-r from-emerald-300 via-emerald-400 to-green-500"
+                        : "bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500"
+                    }`}
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
@@ -377,25 +488,31 @@ export default function UploadPage() {
                     Files
                   </p>
                   <p className="mt-1 text-lg font-semibold text-white">
-                    {files.length}
+                    {displayTotal}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Batch Size
+                    Done
                   </p>
                   <p className="mt-1 text-lg font-semibold text-white">
-                    {BATCH_SIZE}
+                    {phase === "completed" ? displayTotal : processedImages}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Estimated Time
+                    Status
                   </p>
                   <p className="mt-1 text-lg font-semibold text-white">
-                    {estimatedSeconds}s
+                    {phase === "uploading"
+                      ? "Uploading"
+                      : phase === "processing"
+                      ? "Analyzing"
+                      : phase === "completed"
+                      ? "Finished"
+                      : "Idle"}
                   </p>
                 </div>
               </div>
@@ -414,8 +531,7 @@ export default function UploadPage() {
                 Analysis Completed Successfully
               </h3>
               <p className="mt-1 text-sm text-slate-400">
-                Your sample has been processed and the final sieve results are
-                ready.
+                Your sample has been processed and the final sieve results are ready.
               </p>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
