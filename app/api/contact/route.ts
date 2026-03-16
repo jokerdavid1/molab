@@ -19,7 +19,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "MoLab Contact <onboarding@resend.dev>",
+        from: "<onboarding@resend.dev>",
         to: [toEmail],
         reply_to: email,
         subject: `New message from ${name}`,
