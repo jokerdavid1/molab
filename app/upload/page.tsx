@@ -20,18 +20,18 @@ type AnalysisResponse = {
   error?: string;
 };
 
+const BATCH_SIZE = 8;
+const SECONDS_PER_IMAGE = 10;
+
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progressText, setProgressText] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const secondsPerImage = 10;
-
-  const estimatedSeconds = useMemo(() => {
-    return files.length * secondsPerImage;
-  }, [files.length]);
+  const estimatedSeconds = useMemo(() => files.length * SECONDS_PER_IMAGE, [files.length]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
@@ -52,6 +52,7 @@ export default function UploadPage() {
 
     setError(null);
     setResult(null);
+    setProgressText(null);
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -62,6 +63,7 @@ export default function UploadPage() {
     setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
     setError(null);
     setResult(null);
+    setProgressText(null);
   };
 
   const totalFilesText = useMemo(() => {
@@ -69,6 +71,14 @@ export default function UploadPage() {
     if (files.length === 1) return "1 image selected.";
     return `${files.length} images selected.`;
   }, [files.length]);
+
+  const chunkFiles = (inputFiles: File[], chunkSize: number) => {
+    const chunks: File[][] = [];
+    for (let i = 0; i < inputFiles.length; i += chunkSize) {
+      chunks.push(inputFiles.slice(i, i + chunkSize));
+    }
+    return chunks;
+  };
 
   const startAnalysis = async () => {
     if (files.length === 0) {
@@ -79,30 +89,68 @@ export default function UploadPage() {
     setIsLoading(true);
     setError(null);
     setResult(null);
+    setProgressText("Starting analysis job...");
 
     try {
-      const formData = new FormData();
-
-      files.forEach((file) => {
-        formData.append("files", file);
-      });
-
-      const response = await fetch("/api/analyze", {
+      const startRes = await fetch("/api/analyze/start", {
         method: "POST",
-        body: formData,
       });
 
-      const data: AnalysisResponse = await response.json();
+      const startData = await startRes.json();
 
-      if (!response.ok) {
-        throw new Error(data?.error || "Analysis failed.");
+      if (!startRes.ok || !startData.job_id) {
+        throw new Error(startData?.error || "Failed to start job.");
       }
 
-      setResult(data);
+      const jobId = startData.job_id as string;
+      const fileChunks = chunkFiles(files, BATCH_SIZE);
+
+      for (let i = 0; i < fileChunks.length; i++) {
+        const batch = fileChunks[i];
+        setProgressText(
+          `Uploading batch ${i + 1} of ${fileChunks.length}...`
+        );
+
+        const formData = new FormData();
+        batch.forEach((file) => {
+          formData.append("files", file);
+        });
+
+        const uploadRes = await fetch(`/api/analyze/upload/${jobId}`, {
+          method: "POST",
+          body: formData,
+        });
+
+        const uploadData = await uploadRes.json();
+
+        if (!uploadRes.ok) {
+          throw new Error(uploadData?.error || uploadData?.detail || "Batch upload failed.");
+        }
+      }
+
+      setProgressText("Running analysis on uploaded images...");
+
+      const completeRes = await fetch(`/api/analyze/complete/${jobId}`, {
+        method: "POST",
+      });
+
+      const completeData: AnalysisResponse = await completeRes.json();
+
+      if (!completeRes.ok) {
+        throw new Error(
+          completeData?.error ||
+            (completeData as unknown as { detail?: string })?.detail ||
+            "Analysis failed."
+        );
+      }
+
+      setResult(completeData);
+      setProgressText("Analysis completed.");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong during analysis."
       );
+      setProgressText(null);
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +203,7 @@ export default function UploadPage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            Upload all grain images you want to analyze in one batch.
+            Upload all grain images you want to analyze in one batch workflow.
           </p>
         </div>
 
@@ -187,9 +235,14 @@ export default function UploadPage() {
               <p className="mt-5 text-sm text-slate-300">{totalFilesText}</p>
 
               {files.length > 0 && (
-                <p className="mt-2 text-sm text-cyan-300">
-                  Estimated time: {estimatedSeconds} second{estimatedSeconds !== 1 ? "s" : ""}
-                </p>
+                <>
+                  <p className="mt-2 text-sm text-cyan-300">
+                    Estimated time: {estimatedSeconds} second{estimatedSeconds !== 1 ? "s" : ""}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Uploads are sent automatically in batches of {BATCH_SIZE}.
+                  </p>
+                </>
               )}
 
               <div className="mt-4 text-sm text-slate-500">
@@ -228,9 +281,15 @@ export default function UploadPage() {
                   disabled={isLoading}
                   className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isLoading ? "Analyzing..." : "Start Analysis"}
+                  {isLoading ? "Processing..." : "Start Analysis"}
                 </button>
               </div>
+
+              {progressText && (
+                <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-200">
+                  {progressText}
+                </div>
+              )}
 
               {error && (
                 <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
