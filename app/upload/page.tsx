@@ -29,9 +29,20 @@ export default function UploadPage() {
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progressText, setProgressText] = useState<string | null>(null);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [currentStep, setCurrentStep] = useState("Idle");
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const estimatedSeconds = useMemo(() => files.length * SECONDS_PER_IMAGE, [files.length]);
+  const estimatedSeconds = useMemo(
+    () => files.length * SECONDS_PER_IMAGE,
+    [files.length]
+  );
+
+  const totalFilesText = useMemo(() => {
+    if (files.length === 0) return "No files selected yet.";
+    if (files.length === 1) return "1 image selected.";
+    return `${files.length} images selected.`;
+  }, [files.length]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
@@ -53,6 +64,8 @@ export default function UploadPage() {
     setError(null);
     setResult(null);
     setProgressText(null);
+    setProgressPercent(0);
+    setCurrentStep("Idle");
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -64,13 +77,9 @@ export default function UploadPage() {
     setError(null);
     setResult(null);
     setProgressText(null);
+    setProgressPercent(0);
+    setCurrentStep("Idle");
   };
-
-  const totalFilesText = useMemo(() => {
-    if (files.length === 0) return "No files selected yet.";
-    if (files.length === 1) return "1 image selected.";
-    return `${files.length} images selected.`;
-  }, [files.length]);
 
   const chunkFiles = (inputFiles: File[], chunkSize: number) => {
     const chunks: File[][] = [];
@@ -90,6 +99,8 @@ export default function UploadPage() {
     setError(null);
     setResult(null);
     setProgressText("Starting analysis job...");
+    setCurrentStep("Initializing job...");
+    setProgressPercent(5);
 
     try {
       const startRes = await fetch("/api/analyze/start", {
@@ -107,9 +118,13 @@ export default function UploadPage() {
 
       for (let i = 0; i < fileChunks.length; i++) {
         const batch = fileChunks[i];
-        setProgressText(
-          `Uploading batch ${i + 1} of ${fileChunks.length}...`
-        );
+
+        setCurrentStep(`Uploading batch ${i + 1} of ${fileChunks.length}`);
+        setProgressText(`Uploading batch ${i + 1} of ${fileChunks.length}...`);
+
+        const uploadProgress =
+          10 + Math.round(((i + 1) / fileChunks.length) * 50);
+        setProgressPercent(uploadProgress);
 
         const formData = new FormData();
         batch.forEach((file) => {
@@ -124,11 +139,17 @@ export default function UploadPage() {
         const uploadData = await uploadRes.json();
 
         if (!uploadRes.ok) {
-          throw new Error(uploadData?.error || uploadData?.detail || "Batch upload failed.");
+          throw new Error(
+            uploadData?.error ||
+              uploadData?.detail ||
+              "Batch upload failed."
+          );
         }
       }
 
+      setCurrentStep("Running GPU analysis...");
       setProgressText("Running analysis on uploaded images...");
+      setProgressPercent(75);
 
       const completeRes = await fetch(`/api/analyze/complete/${jobId}`, {
         method: "POST",
@@ -144,23 +165,31 @@ export default function UploadPage() {
         );
       }
 
+      setCurrentStep("Preparing results...");
+      setProgressPercent(95);
+
       setResult(completeData);
       setProgressText("Analysis completed.");
+      setCurrentStep("Completed");
+      setProgressPercent(100);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong during analysis."
       );
       setProgressText(null);
+      setCurrentStep("Failed");
+      setProgressPercent(0);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <main className="relative min-h-screen bg-[#020617] text-white">
+    <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_25%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
         <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:44px_44px]" />
+        <div className="absolute left-1/2 top-[-120px] h-[340px] w-[340px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
       </div>
 
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-8 sm:px-6 lg:px-8">
@@ -180,11 +209,21 @@ export default function UploadPage() {
           </div>
 
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
-            <Link href="/" className="transition hover:text-cyan-300">Home</Link>
-            <Link href="/technology" className="transition hover:text-cyan-300">Technology</Link>
-            <Link href="/services" className="transition hover:text-cyan-300">Services</Link>
-            <Link href="/about" className="transition hover:text-cyan-300">About</Link>
-            <Link href="/contact" className="transition hover:text-cyan-300">Contact</Link>
+            <Link href="/" className="transition hover:text-cyan-300">
+              Home
+            </Link>
+            <Link href="/technology" className="transition hover:text-cyan-300">
+              Technology
+            </Link>
+            <Link href="/services" className="transition hover:text-cyan-300">
+              Services
+            </Link>
+            <Link href="/about" className="transition hover:text-cyan-300">
+              About
+            </Link>
+            <Link href="/contact" className="transition hover:text-cyan-300">
+              Contact
+            </Link>
           </nav>
 
           <div className="flex justify-end">
@@ -203,7 +242,7 @@ export default function UploadPage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            Upload all grain images you want to analyze in one batch workflow.
+            Upload all grain images you want to analyze in one premium batch workflow.
           </p>
         </div>
 
@@ -252,7 +291,11 @@ export default function UploadPage() {
           </div>
 
           {files.length > 0 && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+            <div
+              className={`mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 transition ${
+                isLoading ? "pointer-events-none opacity-70 blur-[1px]" : ""
+              }`}
+            >
               <h2 className="text-lg font-medium text-white">Selected files</h2>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -279,98 +322,178 @@ export default function UploadPage() {
                   type="button"
                   onClick={startAnalysis}
                   disabled={isLoading}
-                  className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_30px_rgba(34,211,238,0.22)] transition duration-300 hover:scale-105 hover:bg-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
                 >
-                  {isLoading ? "Processing..." : "Start Analysis"}
+                  {isLoading ? "Processing Sample..." : "Start Analysis"}
                 </button>
               </div>
+            </div>
+          )}
 
-              {progressText && (
-                <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-200">
-                  {progressText}
-                </div>
-              )}
-
-              {error && (
-                <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                  {error}
-                </div>
-              )}
-
-              {result && (
-                <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-                  <h3 className="text-lg font-medium text-emerald-200">
-                    Analysis Completed
-                  </h3>
-
-                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                      <p className="text-xs uppercase tracking-wide text-slate-400">Files</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">
-                        {result.total_files ?? 0}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                      <p className="text-xs uppercase tracking-wide text-slate-400">Total Grains</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">
-                        {result.total_grains ?? 0}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                      <p className="text-xs uppercase tracking-wide text-slate-400">Processing Time</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">
-                        {result.processing_time_seconds?.toFixed(1) ?? "0.0"} s
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6">
-                    <h4 className="text-base font-medium text-white">Sieve Result Table</h4>
-
-                    <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
-                      <table className="min-w-full divide-y divide-white/10">
-                        <thead className="bg-white/[0.04]">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Mesh</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Percent (%)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/10 bg-black/20">
-                          {result.sieve_results && result.sieve_results.length > 0 ? (
-                            result.sieve_results.map((row, index) => (
-                              <tr key={`${row.mesh}-${index}`}>
-                                <td className="px-4 py-3 text-sm text-slate-200">{row.mesh}</td>
-                                <td className="px-4 py-3 text-sm text-slate-200">
-                                  {row.percent.toFixed(2)}
-                                </td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={2} className="px-4 py-4 text-sm text-slate-400">
-                                No sieve results available.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {result.zip_url && (
-                    <div className="mt-6 flex justify-center">
-                      <a
-                        href={result.zip_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
-                      >
-                        Download Results ZIP
-                      </a>
-                    </div>
+          {(isLoading || progressText) && (
+            <div className="mt-6 overflow-hidden rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-blue-500/10 p-5 shadow-[0_0_40px_rgba(34,211,238,0.08)]">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="animate-pulse text-xs uppercase tracking-[0.25em] text-cyan-300">
+                    Processing
+                  </p>
+                  <p className="mt-2 text-lg font-medium text-white">
+                    {currentStep}
+                  </p>
+                  {progressText && (
+                    <p className="mt-1 text-sm text-slate-400">{progressText}</p>
                   )}
+                </div>
+
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.12)]">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500 transition-all duration-500 ease-out"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+
+                <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+                  <span>0%</span>
+                  <span>{progressPercent}%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Files
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {files.length}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Batch Size
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {BATCH_SIZE}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Estimated Time
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {estimatedSeconds}s
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-6 w-full rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
+
+          {result && (
+            <div className="mt-6 w-full rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 via-slate-900/40 to-cyan-500/10 p-5 shadow-[0_0_40px_rgba(16,185,129,0.08)]">
+              <h3 className="text-lg font-medium text-emerald-200">
+                Analysis Completed Successfully
+              </h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Your sample has been processed and the final sieve results are ready.
+              </p>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                    Files
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {result.total_files ?? 0}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                    Total Grains
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {result.total_grains ?? 0}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                    Processing Time
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {result.processing_time_seconds?.toFixed(1) ?? "0.0"} s
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <h4 className="text-base font-medium text-white">
+                  Sieve Result Table
+                </h4>
+
+                <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
+                  <table className="min-w-full divide-y divide-white/10">
+                    <thead className="bg-white/[0.04]">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">
+                          Mesh
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">
+                          Percent (%)
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10 bg-black/20">
+                      {result.sieve_results && result.sieve_results.length > 0 ? (
+                        result.sieve_results.map((row, index) => (
+                          <tr key={`${row.mesh}-${index}`}>
+                            <td className="px-4 py-3 text-sm text-slate-200">
+                              {row.mesh}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-200">
+                              {row.percent.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td
+                            colSpan={2}
+                            className="px-4 py-4 text-sm text-slate-400"
+                          >
+                            No sieve results available.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {result.zip_url && (
+                <div className="mt-6 flex justify-center">
+                  <a
+                    href={result.zip_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
+                  >
+                    Download Results ZIP
+                  </a>
                 </div>
               )}
             </div>
