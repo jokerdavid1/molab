@@ -5,24 +5,24 @@ import Link from "next/link";
 
 const FOCUS = [
   {
-    title: "Digital Grain Analysis",
+    title: "Petroleum Engineering Background",
     description:
-      "Automated analysis of sand grains from microscope images using modern computer vision workflows.",
+      "A foundation in petroleum engineering brings strong understanding of subsurface materials, reservoir-related workflows, and technical problem solving in resource-focused industries.",
   },
   {
-    title: "Particle Size & Shape Evaluation",
+    title: "Mining & Earth Science Perspective",
     description:
-      "Measurement of grain size, morphology, and particle characteristics to support technical sand evaluation.",
+      "Experience connected to mining, earth science, and material evaluation supports a practical approach to sand characterization, deposit understanding, and field-based technical work.",
   },
   {
-    title: "Stockpile Volumetric Calculations",
+    title: "Data Science & Digital Workflows",
     description:
-      "Drone-based photogrammetry and 3D surface modeling to estimate stockpile volumes accurately.",
+      "Modern data analysis, image processing, and computational methods are central to building more efficient and repeatable technical workflows.",
   },
   {
-    title: "Sand Resource Modeling",
+    title: "Bridging Industry and Computation",
     description:
-      "3D modeling of sand deposits from drilling data to estimate geometry, distribution, and tonnage.",
+      "The goal is to connect hands-on industry knowledge with digital tools in a way that is practical, technically sound, and useful for real-world decision making.",
   },
 ];
 
@@ -87,23 +87,27 @@ export default function AboutPage() {
           </div>
 
           <p className="mt-4 max-w-3xl text-base leading-8 text-slate-400">
-            MoLab focuses on modern sand analysis through image-based
-            workflows, digital particle measurement, and 3D technical modeling.
-            The platform is designed to support faster, more consistent, and
-            more scalable evaluation of sand materials.
+            MoLab was built from a background that combines petroleum
+            engineering, mining and earth science, and modern data-driven
+            analysis. This combination shapes the way technical problems are
+            approached: with both practical industry understanding and strong
+            analytical thinking.
           </p>
 
           <p className="mt-4 max-w-3xl text-base leading-8 text-slate-400">
-            The project brings together practical experience in sand testing,
-            geoscience, and engineering analysis. By combining laboratory
-            thinking with modern computational tools, MoLab aims to improve how
-            sand quality and sand resources are evaluated.
+            Training in petroleum engineering provides a strong foundation in
+            subsurface systems, resource-focused workflows, and quantitative
+            technical evaluation. Experience connected to mining and earth
+            science adds a broader perspective on geomaterials, deposits, and
+            real-world operational challenges.
           </p>
 
           <p className="mt-4 max-w-3xl text-base leading-8 text-slate-400">
-            From grain-scale characterization to deposit-scale resource
-            modeling, the goal is to provide practical technical tools for
-            laboratories, mining projects, and geological evaluation workflows.
+            At the same time, an interest in data science, computation, and
+            digital workflows helps transform traditional technical work into
+            more efficient and modern processes. MoLab reflects that
+            intersection between engineering background, mining perspective, and
+            computational problem solving.
           </p>
         </div>
 
