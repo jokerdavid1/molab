@@ -18,13 +18,7 @@ type AnalysisResponse = {
   sieve_results?: SieveRow[];
   zip_url?: string;
   error?: string;
-};
-
-type StatusResponse = {
-  status?: string;
   processed_files?: number;
-  total_files?: number;
-  error?: string;
 };
 
 const BATCH_SIZE = 8;
@@ -36,17 +30,18 @@ export default function UploadPage() {
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [progressText, setProgressText] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState("Idle");
-
   const [jobId, setJobId] = useState<string | null>(null);
   const [phase, setPhase] = useState<
     "idle" | "uploading" | "processing" | "completed" | "failed"
   >("idle");
 
-  const [processedImages, setProcessedImages] = useState(0);
+  const [currentStep, setCurrentStep] = useState("Idle");
+  const [progressText, setProgressText] = useState<string | null>(null);
+
   const [uploadedBatches, setUploadedBatches] = useState(0);
   const [totalBatches, setTotalBatches] = useState(0);
+  const [processedImages, setProcessedImages] = useState(0);
+  const [statusPollEnabled, setStatusPollEnabled] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -88,13 +83,14 @@ export default function UploadPage() {
 
     setError(null);
     setResult(null);
-    setProgressText(null);
-    setCurrentStep("Idle");
+    setJobId(null);
     setPhase("idle");
-    setProcessedImages(0);
+    setCurrentStep("Idle");
+    setProgressText(null);
     setUploadedBatches(0);
     setTotalBatches(0);
-    setJobId(null);
+    setProcessedImages(0);
+    setStatusPollEnabled(false);
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -105,13 +101,14 @@ export default function UploadPage() {
     setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
     setError(null);
     setResult(null);
-    setProgressText(null);
-    setCurrentStep("Idle");
+    setJobId(null);
     setPhase("idle");
-    setProcessedImages(0);
+    setCurrentStep("Idle");
+    setProgressText(null);
     setUploadedBatches(0);
     setTotalBatches(0);
-    setJobId(null);
+    setProcessedImages(0);
+    setStatusPollEnabled(false);
   };
 
   const chunkFiles = (inputFiles: File[], chunkSize: number) => {
@@ -123,7 +120,7 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
-    if (!jobId || phase !== "processing") return;
+    if (!statusPollEnabled || !jobId) return;
 
     const interval = setInterval(async () => {
       try {
@@ -134,14 +131,14 @@ export default function UploadPage() {
 
         if (!res.ok) return;
 
-        const data: StatusResponse = await res.json();
+        const data: AnalysisResponse = await res.json();
 
-        const done = data.processed_files ?? 0;
         const total = data.total_files ?? files.length;
-
-        setProcessedImages(done);
+        const done = data.processed_files ?? 0;
 
         if (data.status === "processing") {
+          setPhase("processing");
+          setProcessedImages(done);
           setCurrentStep("Processing images...");
           if (done < total) {
             setProgressText(`Image ${done + 1} of ${total}`);
@@ -155,6 +152,9 @@ export default function UploadPage() {
           setPhase("completed");
           setCurrentStep("Completed");
           setProgressText("Analysis completed.");
+          setResult(data);
+          setIsLoading(false);
+          setStatusPollEnabled(false);
           clearInterval(interval);
         }
 
@@ -163,15 +163,17 @@ export default function UploadPage() {
           setCurrentStep("Failed");
           setProgressText(null);
           setError(data.error || "Analysis failed.");
+          setIsLoading(false);
+          setStatusPollEnabled(false);
           clearInterval(interval);
         }
       } catch {
-        // temporary polling failure ignored
+        // ignore temporary polling issues
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [jobId, phase, files.length]);
+  }, [statusPollEnabled, jobId, files.length]);
 
   const startAnalysis = async () => {
     if (files.length === 0) {
@@ -182,12 +184,13 @@ export default function UploadPage() {
     setIsLoading(true);
     setError(null);
     setResult(null);
-    setProgressText("Starting analysis...");
-    setCurrentStep("Initializing job...");
-    setPhase("uploading");
-    setProcessedImages(0);
-    setUploadedBatches(0);
     setJobId(null);
+    setPhase("uploading");
+    setCurrentStep("Initializing job...");
+    setProgressText("Starting analysis...");
+    setUploadedBatches(0);
+    setProcessedImages(0);
+    setStatusPollEnabled(false);
 
     try {
       const startRes = await fetch("/api/analyze/start", {
@@ -209,6 +212,7 @@ export default function UploadPage() {
       for (let i = 0; i < fileChunks.length; i++) {
         const batch = fileChunks[i];
 
+        setPhase("uploading");
         setCurrentStep("Uploading images...");
         setProgressText("Uploading images...");
 
@@ -235,40 +239,35 @@ export default function UploadPage() {
         setUploadedBatches(i + 1);
       }
 
-      setPhase("processing");
-      setCurrentStep("Processing images...");
-      setProgressText(`Image 1 of ${files.length}`);
-
       const completeRes = await fetch(`/api/analyze/complete/${newJobId}`, {
         method: "POST",
       });
 
-      const completeData: AnalysisResponse = await completeRes.json();
+      const completeData = await completeRes.json();
 
       if (!completeRes.ok) {
         throw new Error(
           completeData?.error ||
-            (completeData as unknown as { detail?: string })?.detail ||
-            "Analysis failed."
+            completeData?.detail ||
+            "Failed to start analysis."
         );
       }
 
-      setResult(completeData);
-      setProcessedImages(completeData.total_files ?? files.length);
-      setPhase("completed");
-      setCurrentStep("Completed");
-      setProgressText("Analysis completed.");
+      setPhase("processing");
+      setCurrentStep("Processing images...");
+      setProgressText(`Image 1 of ${files.length}`);
+      setStatusPollEnabled(true);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
           : "Something went wrong during analysis."
       );
-      setProgressText(null);
-      setCurrentStep("Failed");
       setPhase("failed");
-    } finally {
+      setCurrentStep("Failed");
+      setProgressText(null);
       setIsLoading(false);
+      setStatusPollEnabled(false);
     }
   };
 
@@ -530,7 +529,7 @@ export default function UploadPage() {
             </div>
           )}
 
-          {result && (
+          {result && phase === "completed" && (
             <div className="mt-6 w-full rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 via-slate-900/40 to-cyan-500/10 p-5 shadow-[0_0_40px_rgba(16,185,129,0.08)]">
               <h3 className="text-lg font-medium text-emerald-200">
                 Analysis Completed Successfully
