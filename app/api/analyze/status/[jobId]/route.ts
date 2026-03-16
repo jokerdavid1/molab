@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: Promise<{ jobId: string }>;
 };
@@ -10,7 +12,10 @@ export async function GET(_: Request, { params }: Props) {
     if (!analysisServerUrl) {
       return Response.json(
         { error: "ANALYSIS_SERVER_URL is not set." },
-        { status: 500 }
+        {
+          status: 500,
+          headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+        }
       );
     }
 
@@ -19,6 +24,7 @@ export async function GET(_: Request, { params }: Props) {
       headers: {
         "ngrok-skip-browser-warning": "true",
       },
+      cache: "no-store",
     });
 
     const text = await response.text();
@@ -28,14 +34,24 @@ export async function GET(_: Request, { params }: Props) {
       data.zip_url = `${analysisServerUrl}${data.zip_url}`;
     }
 
-    return Response.json(data, { status: response.status });
+    return Response.json(data, {
+      status: response.status,
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    });
   } catch (error) {
     return Response.json(
       {
         error: "Failed to get analysis status.",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
     );
   }
 }
