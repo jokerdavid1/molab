@@ -87,6 +87,9 @@ export default function HomePage() {
           </div>
 
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
+            <Link href="/" className="transition hover:text-cyan-300">
+              Home
+            </Link>
             <Link href="/technology" className="transition hover:text-cyan-300">
               Technology
             </Link>
@@ -145,48 +148,91 @@ export default function HomePage() {
         </div>
 
         {/* Columns */}
-        <div className="mt-4 grid gap-3 xl:grid-cols-4">
-          {COLUMNS.map((col, colIndex) => {
-            const active = colIndex === activeIndex;
+        <div className="relative mt-4">
+          <div className="grid gap-3 xl:grid-cols-4">
+            {COLUMNS.map((col, colIndex) => {
+              const active = colIndex === activeIndex;
 
-            return (
-              <button
-                key={col.key}
-                onClick={() => handleActivate(colIndex)}
-                className={`relative flex min-h-[460px] flex-col rounded-[28px] border p-3 transition-all duration-700 ${
-                  active
-                    ? "scale-[1.02] border-cyan-300/40 bg-white/[0.08] shadow-[0_24px_70px_rgba(34,211,238,0.12)]"
-                    : "scale-[0.98] border-white/10 bg-white/[0.04] opacity-40"
-                }`}
-              >
-                <div className="grid flex-1 gap-3">
-                  {col.images.map((src, imgIndex) => (
-                    <div
-                      key={`${col.key}-${imgIndex}`}
-                      className="flex min-h-[200px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
-                    >
-                      <Image
-                        src={src}
-                        alt={`${col.label} ${imgIndex + 1}`}
-                        width={900}
-                        height={600}
-                        priority
-                        className={`h-full max-h-[260px] w-full object-contain p-2 transition-all duration-700 ${
-                          active ? "scale-110" : "scale-95"
-                        }`}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div
-                  className={`pointer-events-none absolute inset-x-6 bottom-1 h-8 rounded-full blur-2xl transition ${
-                    active ? "bg-cyan-400/20 opacity-100" : "opacity-0"
+              return (
+                <button
+                  key={col.key}
+                  onClick={() => handleActivate(colIndex)}
+                  className={`relative flex min-h-[460px] flex-col rounded-[28px] border p-3 transition-all duration-700 ${
+                    active
+                      ? "scale-[1.02] border-cyan-300/40 bg-white/[0.08] shadow-[0_24px_70px_rgba(34,211,238,0.12)]"
+                      : "scale-[0.98] border-white/10 bg-white/[0.04] opacity-40"
                   }`}
-                />
-              </button>
-            );
-          })}
+                >
+                  <div className="grid flex-1 gap-3">
+                    {col.images.map((src, imgIndex) => (
+                      <div
+                        key={`${col.key}-${imgIndex}`}
+                        className="flex min-h-[200px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
+                      >
+                        <Image
+                          src={src}
+                          alt={`${col.label} ${imgIndex + 1}`}
+                          width={900}
+                          height={600}
+                          priority
+                          className={`h-full max-h-[260px] w-full object-contain p-2 transition-all duration-700 ${
+                            active ? "scale-110" : "scale-95"
+                          }`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div
+                    className={`pointer-events-none absolute inset-x-6 bottom-1 h-8 rounded-full blur-2xl transition ${
+                      active ? "bg-cyan-400/20 opacity-100" : "opacity-0"
+                    }`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Arrows between steps - desktop only */}
+          <div className="pointer-events-none absolute inset-0 hidden xl:block">
+            {[0, 1, 2].map((arrowIndex) => {
+              const isActive = activeIndex === arrowIndex + 1;
+
+              return (
+                <div
+                  key={arrowIndex}
+                  className="absolute top-1/2 -translate-y-1/2"
+                  style={{
+                    left: `calc(${((arrowIndex + 1) * 100) / 4}% - 18px)`,
+                  }}
+                >
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-700 ${
+                      isActive
+                        ? "scale-125 border-cyan-300/50 bg-cyan-400/20 text-cyan-200 shadow-[0_0_25px_rgba(34,211,238,0.45)]"
+                        : "scale-100 border-white/10 bg-white/5 text-slate-500"
+                    }`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`h-5 w-5 transition-all duration-700 ${
+                        isActive ? "translate-x-0.5" : ""
+                      }`}
+                    >
+                      <path d="M5 12h14" />
+                      <path d="m13 5 7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* CTA */}
