@@ -5,24 +5,24 @@ import Link from "next/link";
 
 const FOCUS = [
   {
-    title: "Petroleum Engineering Background",
+    title: "Background",
     description:
-      "A foundation in petroleum engineering brings strong understanding of subsurface materials, reservoir-related workflows, and technical problem solving in resource-focused industries.",
+      "MoLab is built on a background combining petroleum engineering, mining and earth science, and practical technical analysis of geomaterials.",
   },
   {
-    title: "Mining & Earth Science Perspective",
+    title: "Motivation",
     description:
-      "Experience connected to mining, earth science, and material evaluation supports a practical approach to sand characterization, deposit understanding, and field-based technical work.",
+      "The project was created to explore how modern computational tools and data-driven methods can improve traditional technical workflows.",
   },
   {
-    title: "Data Science & Digital Workflows",
+    title: "Innovation & Patent",
     description:
-      "Modern data analysis, image processing, and computational methods are central to building more efficient and repeatable technical workflows.",
+      "The core technology behind MoLab is being developed with the goal of intellectual property protection, including potential patent applications related to digital sand analysis workflows.",
   },
   {
-    title: "Bridging Industry and Computation",
+    title: "Future Vision",
     description:
-      "The goal is to connect hands-on industry knowledge with digital tools in a way that is practical, technically sound, and useful for real-world decision making.",
+      "MoLab aims to continue developing advanced tools that bridge engineering knowledge with data science and modern computational analysis.",
   },
 ];
 
@@ -36,6 +36,7 @@ export default function AboutPage() {
       </div>
 
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-8 sm:px-6 lg:px-8">
+
         {/* Header */}
         <header className="grid h-20 grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex items-center">
@@ -86,32 +87,15 @@ export default function AboutPage() {
             ABOUT
           </div>
 
-          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-400">
-            MoLab was built from a background that combines petroleum
-            engineering, mining and earth science, and modern data-driven
-            analysis. This combination shapes the way technical problems are
-            approached: with both practical industry understanding and strong
-            analytical thinking.
-          </p>
-
-          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-400">
-            Training in petroleum engineering provides a strong foundation in
-            subsurface systems, resource-focused workflows, and quantitative
-            technical evaluation. Experience connected to mining and earth
-            science adds a broader perspective on geomaterials, deposits, and
-            real-world operational challenges.
-          </p>
-
-          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-400">
-            At the same time, an interest in data science, computation, and
-            digital workflows helps transform traditional technical work into
-            more efficient and modern processes. MoLab reflects that
-            intersection between engineering background, mining perspective, and
-            computational problem solving.
+          <p className="mt-4 max-w-2xl text-base leading-8 text-slate-400">
+            MoLab is a technical project built at the intersection of
+            engineering, earth science, and data science. It focuses on
+            developing modern digital approaches for analyzing geomaterials and
+            supporting technical workflows.
           </p>
         </div>
 
-        {/* Focus Areas */}
+        {/* About Boxes */}
         <div className="mx-auto mt-10 w-full max-w-6xl">
           <div className="grid gap-6 md:grid-cols-2">
             {FOCUS.map((item) => (
@@ -135,8 +119,8 @@ export default function AboutPage() {
           </div>
         </div>
 
-        {/* Contact CTA */}
-        <div className="mx-auto mt-10 w-full max-w-5xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
+        {/* Contact Section */}
+        <div className="mx-auto mt-12 w-full max-w-5xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
           <div className="rounded-[24px] border border-cyan-300/15 bg-black/20 px-6 py-8 text-center sm:px-10">
             <div className="mx-auto max-w-3xl">
               <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-5 py-2 text-sm uppercase tracking-[0.28em] text-cyan-300">
@@ -144,12 +128,12 @@ export default function AboutPage() {
               </div>
 
               <h2 className="mt-5 text-2xl font-semibold text-white sm:text-3xl">
-                Interested in working with us?
+                Interested in learning more?
               </h2>
 
               <p className="mt-4 text-base leading-8 text-slate-400">
-                If you would like to learn more about MoLab or discuss a sand
-                analysis project, feel free to get in touch.
+                If you would like to learn more about MoLab or discuss a
+                technical collaboration, feel free to reach out.
               </p>
 
               <div className="mt-8 flex justify-center">
@@ -163,6 +147,7 @@ export default function AboutPage() {
             </div>
           </div>
         </div>
+
       </section>
     </main>
   );
