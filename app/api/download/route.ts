@@ -9,23 +9,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Missing file URL" }, { status: 400 });
     }
 
-    // Optional safety: only allow your own backend/ngrok domain
-    const allowedHosts = [
-      "your-ngrok-subdomain.ngrok-free.app",
-      "your-company-server-domain.com",
-      "localhost",
-      "127.0.0.1",
-    ];
+    const parsedUrl = new URL(fileUrl);
+    const hostname = parsedUrl.hostname.toLowerCase();
 
-    const parsed = new URL(fileUrl);
-    if (!allowedHosts.includes(parsed.hostname)) {
+    const isAllowed =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.endsWith(".ngrok-free.app") ||
+      hostname.endsWith(".ngrok-free.dev") ||
+      hostname.endsWith(".ngrok.app");
+
+    if (!isAllowed) {
       return NextResponse.json({ error: "Host not allowed" }, { status: 403 });
     }
 
     const upstream = await fetch(fileUrl, {
       method: "GET",
       headers: {
-        // This header helps bypass ngrok browser warning pages
         "ngrok-skip-browser-warning": "true",
       },
       cache: "no-store",
@@ -41,21 +41,19 @@ export async function GET(req: NextRequest) {
     const contentType =
       upstream.headers.get("content-type") || "application/octet-stream";
 
-    const contentDispositionUpstream =
-      upstream.headers.get("content-disposition");
+    let filename = filenameParam || "analysis-results.zip";
 
-    let filename = filenameParam || "downloaded-file";
-
-    if (!filenameParam && contentDispositionUpstream) {
-      const match = contentDispositionUpstream.match(/filename="?([^"]+)"?/i);
+    const contentDisposition = upstream.headers.get("content-disposition");
+    if (!filenameParam && contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/i);
       if (match?.[1]) {
         filename = match[1];
       }
     }
 
-    const arrayBuffer = await upstream.arrayBuffer();
+    const fileBuffer = await upstream.arrayBuffer();
 
-    return new NextResponse(arrayBuffer, {
+    return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
         "Content-Type": contentType,
