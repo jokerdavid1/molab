@@ -19,20 +19,12 @@ export async function POST(req: Request) {
       },
     });
 
-    const contentType = response.headers.get("content-type") || "";
+    const data = await response.json();
 
-    if (!contentType.includes("application/json")) {
-      const text = await response.text();
-      return Response.json(
-        {
-          error: "Analysis server did not return JSON.",
-          details: text.slice(0, 500),
-        },
-        { status: 500 }
-      );
+    if (data?.zip_url && data.zip_url.startsWith("/")) {
+      data.zip_url = `${analysisServerUrl}${data.zip_url}`;
     }
 
-    const data = await response.json();
     return Response.json(data, { status: response.status });
   } catch (error) {
     return Response.json(
