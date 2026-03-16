@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 type ColumnStage = {
   key: string;
@@ -55,6 +55,34 @@ export default function HomePage() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    const styleId = "molab-stage-arrow-animation";
+
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement("style");
+      style.id = styleId;
+      style.innerHTML = `
+        @keyframes slideArrow {
+          0% {
+            transform: translateX(0%);
+            opacity: 0;
+          }
+          15% {
+            opacity: 1;
+          }
+          85% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(350%);
+            opacity: 0;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
   }, []);
 
   const handleActivate = (index: number) => {
@@ -125,8 +153,49 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Stage Buttons */}
-        <div className="mt-10 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {/* Stage Buttons - Desktop with connecting arrows */}
+        <div className="mt-10 hidden xl:grid xl:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] xl:items-center xl:gap-3">
+          {COLUMNS.map((col, i) => {
+            const active = i === activeIndex;
+
+            return (
+              <Fragment key={col.key}>
+                <div className="flex items-center justify-center">
+                  <button
+                    onClick={() => handleActivate(i)}
+                    className={`relative rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
+                      active
+                        ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200"
+                        : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-slate-200"
+                    }`}
+                  >
+                    {col.label}
+                  </button>
+                </div>
+
+                {i < COLUMNS.length - 1 && (
+                  <div className="relative h-[2px] w-32 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={`absolute inset-y-0 left-0 w-full rounded-full transition-all duration-700 ${
+                        activeIndex > i ? "bg-cyan-300/70" : "bg-transparent"
+                      }`}
+                    />
+                    <div
+                      className={`absolute inset-y-0 left-[-40%] w-[40%] rounded-full bg-gradient-to-r from-transparent via-cyan-200 to-transparent ${
+                        activeIndex > i
+                          ? "animate-[slideArrow_1.4s_linear_infinite]"
+                          : "hidden"
+                      }`}
+                    />
+                  </div>
+                )}
+              </Fragment>
+            );
+          })}
+        </div>
+
+        {/* Stage Buttons - Mobile / Tablet */}
+        <div className="mt-10 grid grid-cols-2 gap-3 xl:hidden">
           {COLUMNS.map((col, i) => {
             const active = i === activeIndex;
 
@@ -148,91 +217,48 @@ export default function HomePage() {
         </div>
 
         {/* Columns */}
-        <div className="relative mt-4">
-          <div className="grid gap-3 xl:grid-cols-4">
-            {COLUMNS.map((col, colIndex) => {
-              const active = colIndex === activeIndex;
+        <div className="mt-4 grid gap-3 xl:grid-cols-4">
+          {COLUMNS.map((col, colIndex) => {
+            const active = colIndex === activeIndex;
 
-              return (
-                <button
-                  key={col.key}
-                  onClick={() => handleActivate(colIndex)}
-                  className={`relative flex min-h-[460px] flex-col rounded-[28px] border p-3 transition-all duration-700 ${
-                    active
-                      ? "scale-[1.02] border-cyan-300/40 bg-white/[0.08] shadow-[0_24px_70px_rgba(34,211,238,0.12)]"
-                      : "scale-[0.98] border-white/10 bg-white/[0.04] opacity-40"
-                  }`}
-                >
-                  <div className="grid flex-1 gap-3">
-                    {col.images.map((src, imgIndex) => (
-                      <div
-                        key={`${col.key}-${imgIndex}`}
-                        className="flex min-h-[200px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
-                      >
-                        <Image
-                          src={src}
-                          alt={`${col.label} ${imgIndex + 1}`}
-                          width={900}
-                          height={600}
-                          priority
-                          className={`h-full max-h-[260px] w-full object-contain p-2 transition-all duration-700 ${
-                            active ? "scale-110" : "scale-95"
-                          }`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div
-                    className={`pointer-events-none absolute inset-x-6 bottom-1 h-8 rounded-full blur-2xl transition ${
-                      active ? "bg-cyan-400/20 opacity-100" : "opacity-0"
-                    }`}
-                  />
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Arrows between steps - desktop only */}
-          <div className="pointer-events-none absolute inset-0 hidden xl:block">
-            {[0, 1, 2].map((arrowIndex) => {
-              const isActive = activeIndex === arrowIndex + 1;
-
-              return (
-                <div
-                  key={arrowIndex}
-                  className="absolute top-1/2 -translate-y-1/2"
-                  style={{
-                    left: `calc(${((arrowIndex + 1) * 100) / 4}% - 18px)`,
-                  }}
-                >
-                  <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-700 ${
-                      isActive
-                        ? "scale-125 border-cyan-300/50 bg-cyan-400/20 text-cyan-200 shadow-[0_0_25px_rgba(34,211,238,0.45)]"
-                        : "scale-100 border-white/10 bg-white/5 text-slate-500"
-                    }`}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className={`h-5 w-5 transition-all duration-700 ${
-                        isActive ? "translate-x-0.5" : ""
-                      }`}
+            return (
+              <button
+                key={col.key}
+                onClick={() => handleActivate(colIndex)}
+                className={`relative flex min-h-[460px] flex-col rounded-[28px] border p-3 transition-all duration-700 ${
+                  active
+                    ? "scale-[1.02] border-cyan-300/40 bg-white/[0.08] shadow-[0_24px_70px_rgba(34,211,238,0.12)]"
+                    : "scale-[0.98] border-white/10 bg-white/[0.04] opacity-40"
+                }`}
+              >
+                <div className="grid flex-1 gap-3">
+                  {col.images.map((src, imgIndex) => (
+                    <div
+                      key={`${col.key}-${imgIndex}`}
+                      className="flex min-h-[200px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
                     >
-                      <path d="M5 12h14" />
-                      <path d="m13 5 7 7-7 7" />
-                    </svg>
-                  </div>
+                      <Image
+                        src={src}
+                        alt={`${col.label} ${imgIndex + 1}`}
+                        width={900}
+                        height={600}
+                        priority
+                        className={`h-full max-h-[260px] w-full object-contain p-2 transition-all duration-700 ${
+                          active ? "scale-110" : "scale-95"
+                        }`}
+                      />
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
+
+                <div
+                  className={`pointer-events-none absolute inset-x-6 bottom-1 h-8 rounded-full blur-2xl transition ${
+                    active ? "bg-cyan-400/20 opacity-100" : "opacity-0"
+                  }`}
+                />
+              </button>
+            );
+          })}
         </div>
 
         {/* CTA */}
