@@ -174,7 +174,9 @@ export default function UploadPage() {
       setProgressPercent(100);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Something went wrong during analysis."
+        err instanceof Error
+          ? err.message
+          : "Something went wrong during analysis."
       );
       setProgressText(null);
       setCurrentStep("Failed");
@@ -242,7 +244,8 @@ export default function UploadPage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            Upload all grain images you want to analyze in one premium batch workflow.
+            Upload all grain images you want to analyze in one premium batch
+            workflow.
           </p>
         </div>
 
@@ -276,7 +279,8 @@ export default function UploadPage() {
               {files.length > 0 && (
                 <>
                   <p className="mt-2 text-sm text-cyan-300">
-                    Estimated time: {estimatedSeconds} second{estimatedSeconds !== 1 ? "s" : ""}
+                    Estimated time: {estimatedSeconds} second
+                    {estimatedSeconds !== 1 ? "s" : ""}
                   </p>
                   <p className="mt-2 text-sm text-slate-500">
                     Uploads are sent automatically in batches of {BATCH_SIZE}.
@@ -341,7 +345,9 @@ export default function UploadPage() {
                     {currentStep}
                   </p>
                   {progressText && (
-                    <p className="mt-1 text-sm text-slate-400">{progressText}</p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {progressText}
+                    </p>
                   )}
                 </div>
 
@@ -408,7 +414,8 @@ export default function UploadPage() {
                 Analysis Completed Successfully
               </h3>
               <p className="mt-1 text-sm text-slate-400">
-                Your sample has been processed and the final sieve results are ready.
+                Your sample has been processed and the final sieve results are
+                ready.
               </p>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -487,9 +494,9 @@ export default function UploadPage() {
               {result.zip_url && (
                 <div className="mt-6 flex justify-center">
                   <a
-                    href={result.zip_url}
-                    target="_blank"
-                    rel="noreferrer"
+                    href={`/api/download?url=${encodeURIComponent(
+                      result.zip_url
+                    )}&filename=${encodeURIComponent("analysis-results.zip")}`}
                     className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
                   >
                     Download Results ZIP
