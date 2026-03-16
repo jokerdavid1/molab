@@ -77,12 +77,14 @@ const TECHNOLOGY_CARDS = [
 export default function TechnologyPage() {
   return (
     <main className="relative min-h-screen bg-[#020617] text-white">
+      {/* Background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_25%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
         <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:44px_44px]" />
       </div>
 
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-8 sm:px-6 lg:px-8">
+        {/* Header */}
         <header className="grid h-20 grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex items-center">
             <Link href="/">
@@ -126,14 +128,11 @@ export default function TechnologyPage() {
           </div>
         </header>
 
+        {/* Intro */}
         <div className="mt-8 flex flex-col items-center text-center">
           <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-6 py-2 text-base uppercase tracking-[0.35em] text-cyan-300">
             TECHNOLOGY
           </div>
-
-          <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            AI-Powered Sand Analysis Technology
-          </h1>
 
           <p className="mt-4 max-w-3xl text-base leading-8 text-slate-400">
             Our platform combines computer vision, particle measurement, and
@@ -143,15 +142,14 @@ export default function TechnologyPage() {
           </p>
         </div>
 
+        {/* Pipeline */}
         <div className="mx-auto mt-10 w-full max-w-6xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
           <div className="rounded-[24px] border border-white/10 bg-black/20 p-6 sm:p-8">
             <div className="flex flex-col items-center text-center">
               <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
                 Processing Pipeline
               </p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">
-                From image input to technical results
-              </h2>
+
               <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-400">
                 Each uploaded image moves through a structured digital workflow
                 that detects grains, measures particle characteristics, and
@@ -161,10 +159,7 @@ export default function TechnologyPage() {
 
             <div className="mt-8 hidden xl:grid xl:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr_auto_1fr] xl:items-center xl:gap-3">
               {PIPELINE_STEPS.map((step, index) => (
-                <div
-                  key={step}
-                  className="contents"
-                >
+                <div key={step} className="contents">
                   <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-medium text-cyan-200">
                     {step}
                   </div>
@@ -189,6 +184,7 @@ export default function TechnologyPage() {
           </div>
         </div>
 
+        {/* Technology Cards */}
         <div className="mx-auto mt-8 w-full max-w-6xl">
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {TECHNOLOGY_CARDS.map((card) => (
@@ -223,6 +219,7 @@ export default function TechnologyPage() {
           </div>
         </div>
 
+        {/* CTA */}
         <div className="flex justify-center pb-2 pt-10">
           <Link
             href="/upload"
