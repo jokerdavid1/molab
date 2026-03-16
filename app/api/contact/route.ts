@@ -12,6 +12,20 @@ export async function POST(request: Request) {
     const apiKey = process.env.RESEND_API_KEY;
     const toEmail = process.env.CONTACT_TO_EMAIL;
 
+    if (!apiKey) {
+      return Response.json(
+        { error: "RESEND_API_KEY is missing." },
+        { status: 500 }
+      );
+    }
+
+    if (!toEmail) {
+      return Response.json(
+        { error: "CONTACT_TO_EMAIL is missing." },
+        { status: 500 }
+      );
+    }
+
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -19,7 +33,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "<onboarding@resend.dev>",
+        from: "MoLab <onboarding@resend.dev>",
         to: [toEmail],
         reply_to: email,
         subject: `New message from ${name}`,
@@ -31,7 +45,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       return Response.json(
-        { error: data?.message || "Failed to send email" },
+        { error: data?.message || "Failed to send email." },
         { status: 500 }
       );
     }
@@ -39,7 +53,7 @@ export async function POST(request: Request) {
     return Response.json({ success: true });
   } catch {
     return Response.json(
-      { error: "Something went wrong" },
+      { error: "Something went wrong." },
       { status: 500 }
     );
   }
