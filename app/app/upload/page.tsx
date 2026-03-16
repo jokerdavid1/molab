@@ -113,6 +113,7 @@ export default function UploadPage() {
           {files.length > 0 && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
               <h2 className="text-lg font-medium text-white">Selected files</h2>
+
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {files.map((file, index) => (
                   <div
