@@ -2,14 +2,37 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useRef, useState } from "react";
 
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
-    setFiles(selected);
+
+    if (selected.length === 0) return;
+
+    setFiles((prev) => {
+      const existingKeys = new Set(
+        prev.map((file) => `${file.name}-${file.size}-${file.lastModified}`)
+      );
+
+      const newFiles = selected.filter((file) => {
+        const key = `${file.name}-${file.size}-${file.lastModified}`;
+        return !existingKeys.has(key);
+      });
+
+      return [...prev, ...newFiles];
+    });
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  };
+
+  const removeFile = (indexToRemove: number) => {
+    setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
   const totalFilesText = useMemo(() => {
@@ -32,15 +55,19 @@ export default function UploadPage() {
               <Image
                 src="/logo/logo.png"
                 alt="MoLab"
-                width={320}
-                height={120}
+                width={190}
+                height={72}
                 priority
-                className="w-auto drop-shadow-[0_0_25px_rgba(34,211,238,0.35)]"
+                sizes="190px"
+                className="w-auto drop-shadow-[0_0_20px_rgba(34,211,238,0.28)]"
               />
             </Link>
           </div>
 
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
+            <Link href="/" className="transition hover:text-cyan-300">
+              Home
+            </Link>
             <Link href="/technology" className="transition hover:text-cyan-300">
               Technology
             </Link>
@@ -58,7 +85,7 @@ export default function UploadPage() {
           <div className="flex justify-end">
             <Link
               href="/upload"
-              className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-2.5 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)]"
+              className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-2.5 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
             >
               Upload Sample
             </Link>
@@ -93,6 +120,7 @@ export default function UploadPage() {
                 <label className="inline-flex cursor-pointer rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105">
                   Choose Images
                   <input
+                    ref={inputRef}
                     type="file"
                     accept=".png,.jpg,.jpeg"
                     multiple
@@ -112,15 +140,35 @@ export default function UploadPage() {
 
           {files.length > 0 && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-              <h2 className="text-lg font-medium text-white">Selected files</h2>
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-lg font-medium text-white">Selected files</h2>
+
+                <button
+                  type="button"
+                  onClick={() => setFiles([])}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+                >
+                  Clear All
+                </button>
+              </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {files.map((file, index) => (
                   <div
-                    key={`${file.name}-${index}`}
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300"
+                    key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300"
                   >
-                    {file.name}
+                    <span className="truncate">{file.name}</span>
+
+                    <button
+                      type="button"
+                      onClick={() => removeFile(index)}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-400/20 bg-red-400/10 text-base font-semibold leading-none text-red-300 transition hover:scale-105 hover:bg-red-400/20"
+                      aria-label={`Remove ${file.name}`}
+                      title="Remove file"
+                    >
+                      ×
+                    </button>
                   </div>
                 ))}
               </div>
