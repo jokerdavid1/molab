@@ -97,11 +97,7 @@ export default function UploadPage() {
             UPLOAD SAMPLE IMAGES
           </div>
 
-          <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Select all images for analysis
-          </h1>
-
-          <p className="mt-3 max-w-2xl text-base text-slate-400">
+          <p className="mt-4 max-w-2xl text-base text-slate-400">
             Upload all grain images you want to analyze in one batch.
           </p>
         </div>
@@ -112,6 +108,7 @@ export default function UploadPage() {
               <p className="text-lg font-medium text-white">
                 Drag and drop your images here
               </p>
+
               <p className="mt-2 text-sm text-slate-400">
                 Or click below to browse files.
               </p>
@@ -140,32 +137,19 @@ export default function UploadPage() {
 
           {files.length > 0 && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-lg font-medium text-white">Selected files</h2>
-
-                <button
-                  type="button"
-                  onClick={() => setFiles([])}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
-                >
-                  Clear All
-                </button>
-              </div>
+              <h2 className="text-lg font-medium text-white">Selected files</h2>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {files.map((file, index) => (
                   <div
-                    key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300"
+                    key={`${file.name}-${index}`}
+                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300"
                   >
                     <span className="truncate">{file.name}</span>
 
                     <button
-                      type="button"
                       onClick={() => removeFile(index)}
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-400/20 bg-red-400/10 text-base font-semibold leading-none text-red-300 transition hover:scale-105 hover:bg-red-400/20"
-                      aria-label={`Remove ${file.name}`}
-                      title="Remove file"
+                      className="ml-4 flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-red-300 hover:bg-red-500/40"
                     >
                       ×
                     </button>
@@ -174,10 +158,7 @@ export default function UploadPage() {
               </div>
 
               <div className="mt-6 flex justify-center">
-                <button
-                  type="button"
-                  className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
-                >
+                <button className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30">
                   Start Analysis
                 </button>
               </div>
