@@ -4,8 +4,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChangeEvent, useMemo, useRef, useState } from "react";
 
+type AnalysisResponse = {
+  status?: string;
+  total_files?: number;
+  files?: string[];
+  job_id?: string;
+  uploaded_files?: string[];
+  analysis_result?: unknown;
+  error?: string;
+};
+
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<AnalysisResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -26,6 +39,9 @@ export default function UploadPage() {
       return [...prev, ...newFiles];
     });
 
+    setError(null);
+    setResult(null);
+
     if (inputRef.current) {
       inputRef.current.value = "";
     }
@@ -40,6 +56,44 @@ export default function UploadPage() {
     if (files.length === 1) return "1 image selected.";
     return `${files.length} images selected.`;
   }, [files.length]);
+
+  const startAnalysis = async () => {
+    if (files.length === 0) {
+      setError("Please select at least one image.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const formData = new FormData();
+
+      files.forEach((file) => {
+        formData.append("files", file);
+      });
+
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data: AnalysisResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Analysis failed.");
+      }
+
+      setResult(data);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Something went wrong during analysis."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <main className="relative min-h-screen bg-[#020617] text-white">
@@ -148,8 +202,9 @@ export default function UploadPage() {
                     <span className="truncate">{file.name}</span>
 
                     <button
+                      type="button"
                       onClick={() => removeFile(index)}
-                      className="ml-4 flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-red-300 hover:bg-red-500/40"
+                      className="ml-4 flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-red-300 transition hover:bg-red-500/40"
                     >
                       ×
                     </button>
@@ -158,10 +213,33 @@ export default function UploadPage() {
               </div>
 
               <div className="mt-6 flex justify-center">
-                <button className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30">
-                  Start Analysis
+                <button
+                  type="button"
+                  onClick={startAnalysis}
+                  disabled={isLoading}
+                  className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isLoading ? "Analyzing..." : "Start Analysis"}
                 </button>
               </div>
+
+              {error && (
+                <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  {error}
+                </div>
+              )}
+
+              {result && (
+                <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
+                  <h3 className="text-base font-medium text-emerald-200">
+                    Analysis response received
+                  </h3>
+
+                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-sm text-slate-200">
+                    {JSON.stringify(result, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
         </div>
