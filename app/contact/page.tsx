@@ -2,10 +2,50 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { FormEvent, useState } from "react";
 
 export default function ContactPage() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+
+    setLoading(true);
+    setStatus("");
+
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, email, message }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus(data.error || "Failed to send message.");
+      } else {
+        setStatus("Message sent successfully.");
+        setName("");
+        setEmail("");
+        setMessage("");
+      }
+    } catch {
+      setStatus("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="relative min-h-screen bg-[#020617] text-white">
+
       {/* Background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_25%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
@@ -48,14 +88,7 @@ export default function ContactPage() {
             </Link>
           </nav>
 
-          <div className="flex justify-end">
-            <Link
-              href="/upload"
-              className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-2.5 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
-            >
-              Upload Sample
-            </Link>
-          </div>
+          <div></div>
         </header>
 
         {/* Title */}
@@ -64,58 +97,75 @@ export default function ContactPage() {
             CONTACT
           </div>
 
-          <h1 className="mt-6 text-3xl font-semibold sm:text-4xl">
-            Get in touch
-          </h1>
-
-          <p className="mt-3 max-w-2xl text-slate-400">
+          <p className="mt-4 max-w-2xl text-slate-400">
             If you have questions, collaboration ideas, or technical inquiries,
             feel free to send a message.
           </p>
         </div>
 
         {/* Contact Form */}
-        <div className="mx-auto mt-12 w-full max-w-3xl rounded-[30px] border border-white/10 bg-white/[0.05] p-8 backdrop-blur-md shadow-[0_24px_70px_rgba(0,0,0,0.25)]">
+        <div className="mx-auto mt-12 w-full max-w-3xl rounded-[30px] border border-white/10 bg-white/[0.05] p-8 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
 
-          <form className="space-y-6">
+          <form className="space-y-6" onSubmit={handleSubmit}>
 
             {/* Name */}
             <div>
-              <label className="text-sm text-slate-300">Name</label>
+              <label className="text-sm text-slate-300">
+                Name
+              </label>
               <input
                 type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-cyan-400"
                 placeholder="Your name"
               />
             </div>
 
-            {/* Email */}
+            {/* Email (required) */}
             <div>
-              <label className="text-sm text-slate-300">Email</label>
+              <label className="text-sm text-slate-300">
+                Email *
+              </label>
               <input
                 type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-cyan-400"
                 placeholder="your@email.com"
               />
             </div>
 
-            {/* Message */}
+            {/* Message (required) */}
             <div>
-              <label className="text-sm text-slate-300">Message</label>
+              <label className="text-sm text-slate-300">
+                Message *
+              </label>
               <textarea
                 rows={5}
+                required
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
                 className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-cyan-400"
                 placeholder="Write your message..."
               />
             </div>
 
+            {status && (
+              <p className="text-center text-sm text-slate-300">
+                {status}
+              </p>
+            )}
+
             {/* Button */}
             <div className="flex justify-center pt-2">
               <button
                 type="submit"
-                className="rounded-full bg-cyan-400 px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
+                disabled={loading}
+                className="rounded-full bg-cyan-400 px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105 disabled:opacity-60"
               >
-                Send Message
+                {loading ? "Sending..." : "Send Message"}
               </button>
             </div>
 
