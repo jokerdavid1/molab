@@ -15,7 +15,7 @@ const TECHNOLOGY_CARDS = [
   {
     title: "AI Grain Detection",
     description:
-      "Individual sand grains are identified from uploaded images using computer vision and contour-based segmentation. This allows the platform to isolate particle boundaries from the background with high consistency.",
+      "Individual sand grains are identified from uploaded images using computer vision and contour-based segmentation. This allows the platform to isolate particle boundaries from the background.",
     points: [
       "Automated grain isolation",
       "Contour extraction",
