@@ -44,7 +44,14 @@ export default function UploadPage() {
   const [processedImages, setProcessedImages] = useState(0);
   const [statusPollEnabled, setStatusPollEnabled] = useState(false);
 
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const captureCountRef = useRef(1);
 
   const estimatedSeconds = useMemo(
     () => files.length * SECONDS_PER_IMAGE,
@@ -65,6 +72,19 @@ export default function UploadPage() {
   const computedProgressPercent =
     totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
+  const resetAnalysisState = () => {
+    setError(null);
+    setResult(null);
+    setJobId(null);
+    setPhase("idle");
+    setCurrentStep("Idle");
+    setProgressText(null);
+    setUploadedBatches(0);
+    setTotalBatches(0);
+    setProcessedImages(0);
+    setStatusPollEnabled(false);
+  };
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
     if (selected.length === 0) return;
@@ -82,16 +102,7 @@ export default function UploadPage() {
       return [...prev, ...newFiles];
     });
 
-    setError(null);
-    setResult(null);
-    setJobId(null);
-    setPhase("idle");
-    setCurrentStep("Idle");
-    setProgressText(null);
-    setUploadedBatches(0);
-    setTotalBatches(0);
-    setProcessedImages(0);
-    setStatusPollEnabled(false);
+    resetAnalysisState();
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -100,16 +111,7 @@ export default function UploadPage() {
 
   const removeFile = (indexToRemove: number) => {
     setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
-    setError(null);
-    setResult(null);
-    setJobId(null);
-    setPhase("idle");
-    setCurrentStep("Idle");
-    setProgressText(null);
-    setUploadedBatches(0);
-    setTotalBatches(0);
-    setProcessedImages(0);
-    setStatusPollEnabled(false);
+    resetAnalysisState();
   };
 
   const chunkFiles = (inputFiles: File[], chunkSize: number) => {
@@ -120,23 +122,131 @@ export default function UploadPage() {
     return chunks;
   };
 
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setCameraOpen(false);
+  };
+
+  const openCamera = async () => {
+    try {
+      setCameraError(null);
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError("Camera access is not supported in this browser.");
+        return;
+      }
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      setCameraOpen(true);
+
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current
+            .play()
+            .catch(() => setCameraError("Unable to start camera preview."));
+        }
+      }, 0);
+    } catch {
+      setCameraError(
+        "Could not access the microscope/camera. Please allow camera permission and make sure the microscope is connected."
+      );
+    }
+  };
+
+  const capturePhoto = async () => {
+    try {
+      if (!videoRef.current || !canvasRef.current) {
+        setCameraError("Camera preview is not ready.");
+        return;
+      }
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+
+      if (!width || !height) {
+        setCameraError("Camera preview is not ready yet.");
+        return;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        setCameraError("Could not capture image.");
+        return;
+      }
+
+      ctx.drawImage(video, 0, 0, width, height);
+
+      const blob: Blob | null = await new Promise((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.95)
+      );
+
+      if (!blob) {
+        setCameraError("Could not create image file.");
+        return;
+      }
+
+      const now = Date.now();
+      const file = new File(
+        [blob],
+        `microscope_capture_${now}_${captureCountRef.current}.jpg`,
+        {
+          type: "image/jpeg",
+          lastModified: now,
+        }
+      );
+
+      captureCountRef.current += 1;
+
+      setFiles((prev) => [...prev, file]);
+      resetAnalysisState();
+      setCameraError(null);
+    } catch {
+      setCameraError("Failed to capture image.");
+    }
+  };
+
   useEffect(() => {
     if (!statusPollEnabled || !jobId) return;
-  
+
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${API_BASE}/analyze/status/${jobId}`, {
           method: "GET",
           cache: "no-store",
         });
-  
+
         if (!res.ok) return;
-  
+
         const data: AnalysisResponse = await res.json();
-  
+
         const total = data.total_files ?? files.length;
         const done = data.processed_files ?? 0;
-  
+
         if (data.status === "processing") {
           setPhase("processing");
           setProcessedImages(done);
@@ -147,17 +257,17 @@ export default function UploadPage() {
             setProgressText(`Image ${total} of ${total}`);
           }
         }
-  
+
         if (data.status === "completed") {
           const hasFinalData =
             typeof data.total_grains === "number" &&
             data.processing_time_seconds != null &&
             Array.isArray(data.sieve_results);
-  
+
           if (!hasFinalData) {
             return;
           }
-  
+
           setProcessedImages(total);
           setPhase("completed");
           setCurrentStep("Completed");
@@ -167,7 +277,7 @@ export default function UploadPage() {
           setStatusPollEnabled(false);
           clearInterval(interval);
         }
-  
+
         if (data.status === "failed") {
           setPhase("failed");
           setCurrentStep("Failed");
@@ -181,9 +291,17 @@ export default function UploadPage() {
         // ignore temporary polling issues
       }
     }, 1000);
-  
+
     return () => clearInterval(interval);
   }, [statusPollEnabled, jobId, files.length]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
 
   const startAnalysis = async () => {
     if (files.length === 0) {
@@ -357,7 +475,7 @@ export default function UploadPage() {
                 Or click below to browse files.
               </p>
 
-              <div className="mt-6">
+              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <label className="inline-flex cursor-pointer rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105">
                   Choose Images
                   <input
@@ -369,6 +487,14 @@ export default function UploadPage() {
                     className="hidden"
                   />
                 </label>
+
+                <button
+                  type="button"
+                  onClick={cameraOpen ? stopCamera : openCamera}
+                  className="inline-flex rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-semibold text-cyan-200 shadow-[0_0_30px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
+                >
+                  {cameraOpen ? "Close Microscope" : "Use Microscope / Camera"}
+                </button>
               </div>
 
               <div className="mt-4 text-sm text-slate-500">
@@ -376,6 +502,55 @@ export default function UploadPage() {
               </div>
             </div>
           </div>
+
+          {cameraOpen && (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+              <h2 className="text-lg font-medium text-white">
+                Microscope / Camera Capture
+              </h2>
+
+              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full"
+                />
+              </div>
+
+              <canvas ref={canvasRef} className="hidden" />
+
+              <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={capturePhoto}
+                  className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
+                >
+                  Capture Photo
+                </button>
+
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
+                >
+                  Done Capturing
+                </button>
+              </div>
+
+              <p className="mt-3 text-center text-sm text-slate-400">
+                Each captured image is automatically added to your selected files
+                below. You can keep taking more pictures.
+              </p>
+            </div>
+          )}
+
+          {cameraError && (
+            <div className="mt-6 w-full rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {cameraError}
+            </div>
+          )}
 
           {files.length > 0 && (
             <div
@@ -625,7 +800,11 @@ export default function UploadPage() {
               {result.zip_url && (
                 <div className="mt-6 flex justify-center">
                   <a
-                    href={result.zip_url.startsWith("http") ? result.zip_url : `${API_BASE}${result.zip_url}`}
+                    href={
+                      result.zip_url.startsWith("http")
+                        ? result.zip_url
+                        : `${API_BASE}${result.zip_url}`
+                    }
                     className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
                   >
                     Download Results ZIP
@@ -638,4 +817,4 @@ export default function UploadPage() {
       </section>
     </main>
   );
-} 
+}
