@@ -638,4 +638,4 @@ export default function UploadPage() {
       </section>
     </main>
   );
-} just tell me if fine or not from beginning? i do not want full code only what needed to correct and where. also tell me what next to do exactly step by step. do not change anything else.
+} 
