@@ -21,6 +21,11 @@ type AnalysisResponse = {
   processed_files?: number;
 };
 
+type CameraDevice = {
+  deviceId: string;
+  label: string;
+};
+
 const API_BASE = "https://api.molab.ca";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
@@ -46,6 +51,8 @@ export default function UploadPage() {
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraDevices, setCameraDevices] = useState<CameraDevice[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -129,13 +136,39 @@ export default function UploadPage() {
     }
 
     if (videoRef.current) {
+      videoRef.current.pause();
       videoRef.current.srcObject = null;
+      videoRef.current.load();
     }
 
     setCameraOpen(false);
   };
 
-  const openCamera = async () => {
+  const loadCameraDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videos = devices
+        .filter((d) => d.kind === "videoinput")
+        .map((d, index) => ({
+          deviceId: d.deviceId,
+          label: d.label || `Camera ${index + 1}`,
+        }));
+
+      setCameraDevices(videos);
+
+      if (!selectedCameraId && videos.length > 0) {
+        const microscope =
+          videos.find((d) =>
+            d.label.toLowerCase().includes("micro")
+          ) || videos[0];
+        setSelectedCameraId(microscope.deviceId);
+      }
+    } catch {
+      setCameraError("Could not load available cameras.");
+    }
+  };
+
+  const startCameraStream = async (deviceId?: string) => {
     try {
       setCameraError(null);
 
@@ -144,31 +177,96 @@ export default function UploadPage() {
         return;
       }
 
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
+      stopCamera();
+
+      const constraints: MediaStreamConstraints = {
+        audio: false,
+        video: deviceId
+          ? {
+              deviceId: { exact: deviceId },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            }
+          : {
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      const video = videoRef.current;
+      if (!video) {
+        setCameraError("Video preview element is not ready.");
+        return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      video.srcObject = stream;
+      video.muted = true;
+      video.playsInline = true;
+
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = async () => {
+          try {
+            await video.play();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        };
+      });
+
+      setCameraOpen(true);
+    } catch (err) {
+      setCameraError(
+        "Could not open the selected microscope/camera. Close any microscope software using it, allow browser camera permission, and try again."
+      );
+    }
+  };
+
+  const openCamera = async () => {
+    try {
+      setCameraError(null);
+
+      // First permission call so labels become visible in enumerateDevices
+      const tempStream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: false,
       });
+      tempStream.getTracks().forEach((track) => track.stop());
 
-      streamRef.current = stream;
-      setCameraOpen(true);
+      await loadCameraDevices();
 
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current
-            .play()
-            .catch(() => setCameraError("Unable to start camera preview."));
+      // Wait a moment for state to settle
+      setTimeout(async () => {
+        const preferredId =
+          selectedCameraId ||
+          (await navigator.mediaDevices.enumerateDevices())
+            .filter((d) => d.kind === "videoinput")[0]?.deviceId ||
+          "";
+
+        if (preferredId) {
+          await startCameraStream(preferredId);
+        } else {
+          await startCameraStream();
         }
-      }, 0);
+      }, 100);
     } catch {
       setCameraError(
-        "Could not access the microscope/camera. Please allow camera permission and make sure the microscope is connected."
+        "Could not access camera permission. Please allow camera access in Chrome."
       );
+    }
+  };
+
+  const handleCameraChange = async (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const newId = e.target.value;
+    setSelectedCameraId(newId);
+
+    if (cameraOpen) {
+      await startCameraStream(newId);
     }
   };
 
@@ -264,9 +362,7 @@ export default function UploadPage() {
             data.processing_time_seconds != null &&
             Array.isArray(data.sieve_results);
 
-          if (!hasFinalData) {
-            return;
-          }
+          if (!hasFinalData) return;
 
           setProcessedImages(total);
           setPhase("completed");
@@ -426,21 +522,11 @@ export default function UploadPage() {
           </div>
 
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
-            <Link href="/" className="transition hover:text-cyan-300">
-              Home
-            </Link>
-            <Link href="/technology" className="transition hover:text-cyan-300">
-              Technology
-            </Link>
-            <Link href="/services" className="transition hover:text-cyan-300">
-              Services
-            </Link>
-            <Link href="/about" className="transition hover:text-cyan-300">
-              About
-            </Link>
-            <Link href="/contact" className="transition hover:text-cyan-300">
-              Contact
-            </Link>
+            <Link href="/" className="transition hover:text-cyan-300">Home</Link>
+            <Link href="/technology" className="transition hover:text-cyan-300">Technology</Link>
+            <Link href="/services" className="transition hover:text-cyan-300">Services</Link>
+            <Link href="/about" className="transition hover:text-cyan-300">About</Link>
+            <Link href="/contact" className="transition hover:text-cyan-300">Contact</Link>
           </nav>
 
           <div className="flex justify-end">
@@ -459,8 +545,7 @@ export default function UploadPage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            Upload all grain images you want to analyze in one premium batch
-            workflow.
+            Upload all grain images you want to analyze in one premium batch workflow.
           </p>
         </div>
 
@@ -503,11 +588,34 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {cameraOpen && (
+          {(cameraDevices.length > 0 || cameraOpen) && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
               <h2 className="text-lg font-medium text-white">
                 Microscope / Camera Capture
               </h2>
+
+              {cameraDevices.length > 0 && (
+                <div className="mt-4">
+                  <label className="mb-2 block text-sm text-slate-300">
+                    Camera source
+                  </label>
+                  <select
+                    value={selectedCameraId}
+                    onChange={handleCameraChange}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  >
+                    {cameraDevices.map((device) => (
+                      <option
+                        key={device.deviceId}
+                        value={device.deviceId}
+                        className="bg-slate-900 text-white"
+                      >
+                        {device.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black">
                 <video
@@ -515,7 +623,7 @@ export default function UploadPage() {
                   autoPlay
                   playsInline
                   muted
-                  className="w-full"
+                  className="block min-h-[320px] w-full object-contain bg-black"
                 />
               </div>
 
@@ -540,8 +648,8 @@ export default function UploadPage() {
               </div>
 
               <p className="mt-3 text-center text-sm text-slate-400">
-                Each captured image is automatically added to your selected files
-                below. You can keep taking more pictures.
+                Each captured image is automatically added to your selected files below.
+                You can keep taking more pictures.
               </p>
             </div>
           )}
@@ -720,8 +828,7 @@ export default function UploadPage() {
                 Analysis Completed Successfully
               </h3>
               <p className="mt-1 text-sm text-slate-400">
-                Your sample has been processed and the final sieve results are
-                ready.
+                Your sample has been processed and the final sieve results are ready.
               </p>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
