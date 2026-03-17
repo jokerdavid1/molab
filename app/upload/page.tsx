@@ -21,6 +21,7 @@ type AnalysisResponse = {
   processed_files?: number;
 };
 
+const API_BASE = "https://api.molab.ca";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
 
@@ -124,7 +125,7 @@ export default function UploadPage() {
   
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/analyze/status/${jobId}`, {
+        const res = await fetch(`${API_BASE}/analyze/status/${jobId}`, {
           method: "GET",
           cache: "no-store",
         });
@@ -202,7 +203,7 @@ export default function UploadPage() {
     setStatusPollEnabled(false);
 
     try {
-      const startRes = await fetch("/api/analyze/start", {
+      const startRes = await fetch(`${API_BASE}/analyze/start`, {
         method: "POST",
       });
 
@@ -230,7 +231,7 @@ export default function UploadPage() {
           formData.append("files", file);
         });
 
-        const uploadRes = await fetch(`/api/analyze/upload/${newJobId}`, {
+        const uploadRes = await fetch(`${API_BASE}/analyze/upload/${newJobId}`, {
           method: "POST",
           body: formData,
         });
@@ -248,7 +249,7 @@ export default function UploadPage() {
         setUploadedBatches(i + 1);
       }
 
-      const completeRes = await fetch(`/api/analyze/complete/${newJobId}`, {
+      const completeRes = await fetch(`${API_BASE}/analyze/complete/${newJobId}`, {
         method: "POST",
       });
 
@@ -624,9 +625,7 @@ export default function UploadPage() {
               {result.zip_url && (
                 <div className="mt-6 flex justify-center">
                   <a
-                    href={`/api/download?url=${encodeURIComponent(
-                      result.zip_url
-                    )}&filename=${encodeURIComponent("analysis-results.zip")}`}
+                    href={result.zip_url.startsWith("http") ? result.zip_url : `${API_BASE}${result.zip_url}`}
                     className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
                   >
                     Download Results ZIP
@@ -639,4 +638,4 @@ export default function UploadPage() {
       </section>
     </main>
   );
-}
+} just tell me if fine or not from beginning? i do not want full code only what needed to correct and where. also tell me what next to do exactly step by step. do not change anything else.
