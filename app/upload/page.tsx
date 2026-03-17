@@ -121,21 +121,21 @@ export default function UploadPage() {
 
   useEffect(() => {
     if (!statusPollEnabled || !jobId) return;
-
+  
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/analyze/status/${jobId}`, {
           method: "GET",
           cache: "no-store",
         });
-
+  
         if (!res.ok) return;
-
+  
         const data: AnalysisResponse = await res.json();
-
+  
         const total = data.total_files ?? files.length;
         const done = data.processed_files ?? 0;
-
+  
         if (data.status === "processing") {
           setPhase("processing");
           setProcessedImages(done);
@@ -146,8 +146,17 @@ export default function UploadPage() {
             setProgressText(`Image ${total} of ${total}`);
           }
         }
-
+  
         if (data.status === "completed") {
+          const hasFinalData =
+            typeof data.total_grains === "number" &&
+            data.processing_time_seconds != null &&
+            Array.isArray(data.sieve_results);
+  
+          if (!hasFinalData) {
+            return;
+          }
+  
           setProcessedImages(total);
           setPhase("completed");
           setCurrentStep("Completed");
@@ -157,7 +166,7 @@ export default function UploadPage() {
           setStatusPollEnabled(false);
           clearInterval(interval);
         }
-
+  
         if (data.status === "failed") {
           setPhase("failed");
           setCurrentStep("Failed");
@@ -171,7 +180,7 @@ export default function UploadPage() {
         // ignore temporary polling issues
       }
     }, 1000);
-
+  
     return () => clearInterval(interval);
   }, [statusPollEnabled, jobId, files.length]);
 
