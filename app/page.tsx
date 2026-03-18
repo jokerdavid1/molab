@@ -23,12 +23,12 @@ const COLUMNS: ColumnStage[] = [
   },
   {
     key: "sorted",
-    label: "Color Sorted Grains",
+    label: "Sorted",
     images: ["/demo/sort_1.png", "/demo/sort_2.png"],
   },
   {
     key: "Results",
-    label: "Sieve Results",
+    label: "Results",
     images: ["/demo/sieve.png", "/demo/psd.png"],
   },
 ];
