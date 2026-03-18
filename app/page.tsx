@@ -65,20 +65,10 @@ export default function HomePage() {
       style.id = styleId;
       style.innerHTML = `
         @keyframes slideArrow {
-          0% {
-            transform: translateX(0%);
-            opacity: 0;
-          }
-          15% {
-            opacity: 1;
-          }
-          85% {
-            opacity: 1;
-          }
-          100% {
-            transform: translateX(350%);
-            opacity: 0;
-          }
+          0% { transform: translateX(0%); opacity: 0; }
+          15% { opacity: 1; }
+          85% { opacity: 1; }
+          100% { transform: translateX(350%); opacity: 0; }
         }
       `;
       document.head.appendChild(style);
@@ -115,21 +105,11 @@ export default function HomePage() {
           </div>
 
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
-            <Link href="/" className="transition hover:text-cyan-300">
-              Home
-            </Link>
-            <Link href="/technology" className="transition hover:text-cyan-300">
-              Technology
-            </Link>
-            <Link href="/services" className="transition hover:text-cyan-300">
-              Services
-            </Link>
-            <Link href="/about" className="transition hover:text-cyan-300">
-              About
-            </Link>
-            <Link href="/contact" className="transition hover:text-cyan-300">
-              Contact
-            </Link>
+            <Link href="/" className="transition hover:text-cyan-300">Home</Link>
+            <Link href="/technology" className="transition hover:text-cyan-300">Technology</Link>
+            <Link href="/services" className="transition hover:text-cyan-300">Services</Link>
+            <Link href="/about" className="transition hover:text-cyan-300">About</Link>
+            <Link href="/contact" className="transition hover:text-cyan-300">Contact</Link>
           </nav>
 
           <div className="flex justify-end">
@@ -153,48 +133,48 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Stage Buttons - Desktop with connecting arrows */}
-        <div className="mt-10 hidden xl:grid xl:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] xl:items-center xl:gap-3">
+        {/* ✅ FIXED STAGE BUTTONS (aligned with columns) */}
+        <div className="mt-10 hidden xl:grid xl:grid-cols-4 xl:gap-3">
           {COLUMNS.map((col, i) => {
             const active = i === activeIndex;
 
             return (
-              <Fragment key={col.key}>
-                <div className="flex items-center justify-center">
-                  <button
-                    onClick={() => handleActivate(i)}
-                    className={`relative rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
-                      active
-                        ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200"
-                        : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-slate-200"
-                    }`}
-                  >
-                    {col.label}
-                  </button>
-                </div>
+              <div key={col.key} className="relative flex items-center justify-center">
+                <button
+                  onClick={() => handleActivate(i)}
+                  className={`relative z-10 rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition-all duration-500 ${
+                    active
+                      ? "scale-110 border-cyan-300/40 bg-cyan-400/15 text-cyan-200"
+                      : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-slate-200"
+                  }`}
+                >
+                  {col.label}
+                </button>
 
                 {i < COLUMNS.length - 1 && (
-                  <div className="relative h-[2px] w-32 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className={`absolute inset-y-0 left-0 w-full rounded-full transition-all duration-700 ${
-                        activeIndex > i ? "bg-cyan-300/70" : "bg-transparent"
-                      }`}
-                    />
-                    <div
-                      className={`absolute inset-y-0 left-[-40%] w-[40%] rounded-full bg-gradient-to-r from-transparent via-cyan-200 to-transparent ${
-                        activeIndex > i
-                          ? "animate-[slideArrow_1.4s_linear_infinite]"
-                          : "hidden"
-                      }`}
-                    />
+                  <div className="pointer-events-none absolute left-[calc(50%+56px)] top-1/2 hidden h-[2px] w-[calc(100%-112px+0.75rem)] -translate-y-1/2 xl:block">
+                    <div className="relative h-full w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ${
+                          activeIndex > i ? "w-full bg-cyan-300/70" : "w-0 bg-transparent"
+                        }`}
+                      />
+                      <div
+                        className={`absolute inset-y-0 left-[-40%] w-[40%] rounded-full bg-gradient-to-r from-transparent via-cyan-200 to-transparent ${
+                          activeIndex > i
+                            ? "animate-[slideArrow_1.4s_linear_infinite]"
+                            : "hidden"
+                        }`}
+                      />
+                    </div>
                   </div>
                 )}
-              </Fragment>
+              </div>
             );
           })}
         </div>
 
-        {/* Stage Buttons - Mobile / Tablet */}
+        {/* Mobile buttons (unchanged) */}
         <div className="mt-10 grid grid-cols-2 gap-3 xl:hidden">
           {COLUMNS.map((col, i) => {
             const active = i === activeIndex;
@@ -216,7 +196,7 @@ export default function HomePage() {
           })}
         </div>
 
-        {/* Columns */}
+        {/* Columns (UNCHANGED) */}
         <div className="mt-4 grid gap-3 xl:grid-cols-4">
           {COLUMNS.map((col, colIndex) => {
             const active = colIndex === activeIndex;
