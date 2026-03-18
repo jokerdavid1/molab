@@ -27,8 +27,8 @@ const COLUMNS: ColumnStage[] = [
     images: ["/demo/sort_1.png", "/demo/sort_2.png"],
   },
   {
-    key: "Sieve Result",
-    label: "Results",
+    key: "Results",
+    label: "Sieve Results",
     images: ["/demo/sieve.png", "/demo/psd.png"],
   },
 ];
