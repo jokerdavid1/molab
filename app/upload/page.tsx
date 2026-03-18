@@ -54,6 +54,8 @@ export default function UploadPage() {
   const [cameraDevices, setCameraDevices] = useState<CameraDevice[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
 
+  const [isDragging, setIsDragging] = useState(false);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -92,8 +94,11 @@ export default function UploadPage() {
     setStatusPollEnabled(false);
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || []);
+  const addFiles = (incomingFiles: File[]) => {
+    const selected = incomingFiles.filter((file) =>
+      /\.(png|jpe?g)$/i.test(file.name)
+    );
+
     if (selected.length === 0) return;
 
     setFiles((prev) => {
@@ -114,6 +119,43 @@ export default function UploadPage() {
     if (inputRef.current) {
       inputRef.current.value = "";
     }
+  };
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(e.target.files || []));
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isLoading) setIsDragging(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isLoading) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const relatedTarget = e.relatedTarget as Node | null;
+    if (relatedTarget && e.currentTarget.contains(relatedTarget)) return;
+
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (isLoading) return;
+
+    const droppedFiles = Array.from(e.dataTransfer.files || []);
+    addFiles(droppedFiles);
   };
 
   const removeFile = (indexToRemove: number) => {
@@ -229,7 +271,6 @@ export default function UploadPage() {
     try {
       setCameraError(null);
 
-      // First permission call so labels become visible in enumerateDevices
       const tempStream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: false,
@@ -238,7 +279,6 @@ export default function UploadPage() {
 
       await loadCameraDevices();
 
-      // Wait a moment for state to settle
       setTimeout(async () => {
         const preferredId =
           selectedCameraId ||
@@ -550,7 +590,17 @@ export default function UploadPage() {
         </div>
 
         <div className="mx-auto mt-10 w-full max-w-4xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
-          <div className="rounded-[24px] border border-dashed border-cyan-300/30 bg-black/20 p-10 text-center">
+          <div
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`rounded-[24px] border border-dashed bg-black/20 p-10 text-center transition ${
+              isDragging
+                ? "border-cyan-300/70 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.12)]"
+                : "border-cyan-300/30"
+            }`}
+          >
             <div className="mx-auto max-w-2xl">
               <p className="text-lg font-medium text-white">
                 Drag and drop your images here
