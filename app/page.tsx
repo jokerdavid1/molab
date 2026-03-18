@@ -13,7 +13,7 @@ type ColumnStage = {
 const COLUMNS: ColumnStage[] = [
   {
     key: "raw",
-    label: "Raw Grains",
+    label: "Sand Grains",
     images: ["/demo/grain_1.png", "/demo/grain_2.png"],
   },
   {
@@ -23,11 +23,11 @@ const COLUMNS: ColumnStage[] = [
   },
   {
     key: "sorted",
-    label: "Sorted",
+    label: "Color Sorted Grains",
     images: ["/demo/sort_1.png", "/demo/sort_2.png"],
   },
   {
-    key: "results",
+    key: "Sieve Result",
     label: "Results",
     images: ["/demo/sieve.png", "/demo/psd.png"],
   },
