@@ -65,7 +65,6 @@ const PROCAMP_DEFS = [
   { key: "saturation", label: "Saturation", propValueIndex: 3 },
   { key: "sharpness", label: "Sharpness", propValueIndex: 4 },
   { key: "gamma", label: "Gamma", propValueIndex: 5 },
-  { key: "gain", label: "Gain", propValueIndex: 9 },
 ];
 
 export default function UploadPage() {
@@ -91,7 +90,6 @@ export default function UploadPage() {
 
   const [microscopeStatus, setMicroscopeStatus] = useState<MicroscopeStatus | null>(null);
   const [microscopeBusy, setMicroscopeBusy] = useState(false);
-  const [previewCompact, setPreviewCompact] = useState(false);
   const [procAmpControls, setProcAmpControls] = useState<ProcAmpControl[]>(
     PROCAMP_DEFS.map((item) => ({
       ...item,
@@ -769,7 +767,7 @@ export default function UploadPage() {
           </p>
         </div>
 
-        <div className="mx-auto mt-10 w-full max-w-6xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
+        <div className="mx-auto mt-10 w-full max-w-7xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
           <div
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
@@ -820,42 +818,9 @@ export default function UploadPage() {
 
           {(cameraDevices.length > 0 || cameraOpen) && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-              <div className="flex flex-col gap-3 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-lg font-medium text-white">
-                    Microscope / Camera Capture
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Click the live image to switch between larger view and side controls.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewCompact((prev) => !prev)}
-                    className="rounded-full border border-cyan-300/30 bg-cyan-400/15 px-4 py-2 text-sm font-medium text-cyan-200 transition hover:scale-105 hover:bg-cyan-400/25"
-                  >
-                    {previewCompact ? "Expand Preview" : "Show Side Controls"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={capturePhoto}
-                    className="rounded-full bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
-                  >
-                    Capture Photo
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={stopCamera}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
-                  >
-                    Done Capturing
-                  </button>
-                </div>
-              </div>
+              <h2 className="text-lg font-medium text-white">
+                Microscope / Camera Capture
+              </h2>
 
               {cameraDevices.length > 0 && (
                 <div className="mt-4">
@@ -880,29 +845,35 @@ export default function UploadPage() {
                 </div>
               )}
 
-              <div
-                className={`mt-4 grid gap-4 ${
-                  previewCompact
-                    ? "xl:grid-cols-[minmax(0,1fr)_360px]"
-                    : "xl:grid-cols-[minmax(0,1.55fr)_320px]"
-                }`}
-              >
+              <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
                 <div className="min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewCompact((prev) => !prev)}
-                    className="block w-full overflow-hidden rounded-2xl border border-white/10 bg-black text-left transition hover:border-cyan-300/40"
-                  >
+                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
                     <video
                       ref={videoRef}
                       autoPlay
                       playsInline
                       muted
-                      className={`block w-full object-contain bg-black transition-all duration-300 ${
-                        previewCompact ? "min-h-[300px] max-h-[420px]" : "min-h-[420px] max-h-[620px]"
-                      }`}
+                      className="block min-h-[420px] w-full object-contain bg-black"
                     />
-                  </button>
+                  </div>
+
+                  <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={capturePhoto}
+                      className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
+                    >
+                      Capture Photo
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={stopCamera}
+                      className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
+                    >
+                      Done Capturing
+                    </button>
+                  </div>
 
                   <p className="mt-3 text-center text-sm text-slate-400">
                     Each captured image is automatically added to your selected files below.
@@ -910,7 +881,7 @@ export default function UploadPage() {
                 </div>
 
                 <div className="min-w-0">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 xl:sticky xl:top-6">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-base font-medium text-white">
                         Live Controls
@@ -976,6 +947,9 @@ export default function UploadPage() {
                           onTouchEnd={(e) =>
                             setLightLevel(Number((e.target as HTMLInputElement).value))
                           }
+                          onKeyUp={(e) =>
+                            setLightLevel(Number((e.target as HTMLInputElement).value))
+                          }
                           className="w-full accent-cyan-400"
                         />
                       </div>
@@ -990,7 +964,7 @@ export default function UploadPage() {
                         <input
                           type="range"
                           min={1}
-                          max={2000}
+                          max={1000}
                           step={1}
                           disabled={Boolean(microscopeStatus?.auto_exposure)}
                           value={microscopeStatus?.exposure_value ?? 1}
@@ -1004,6 +978,9 @@ export default function UploadPage() {
                             setExposure(Number((e.target as HTMLInputElement).value))
                           }
                           onTouchEnd={(e) =>
+                            setExposure(Number((e.target as HTMLInputElement).value))
+                          }
+                          onKeyUp={(e) =>
                             setExposure(Number((e.target as HTMLInputElement).value))
                           }
                           className="w-full accent-cyan-400 disabled:opacity-40"
@@ -1073,6 +1050,12 @@ export default function UploadPage() {
                                     )
                                   }
                                   onTouchEnd={(e) =>
+                                    setProcAmpValue(
+                                      control.propValueIndex,
+                                      Number((e.target as HTMLInputElement).value)
+                                    )
+                                  }
+                                  onKeyUp={(e) =>
                                     setProcAmpValue(
                                       control.propValueIndex,
                                       Number((e.target as HTMLInputElement).value)
