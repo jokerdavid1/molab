@@ -59,7 +59,8 @@ type PreviewFile = {
   previewUrl: string;
 };
 
-const API_BASE = "https://api.molab.ca";
+const CLOUD_API = "https://api.molab.ca";
+const LOCAL_API = "http://127.0.0.1:8000";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
 
@@ -94,6 +95,9 @@ export default function UploadPage() {
 
   const [microscopeStatus, setMicroscopeStatus] = useState<MicroscopeStatus | null>(null);
   const [microscopeBusy, setMicroscopeBusy] = useState(false);
+  const [microscopeApiBase, setMicroscopeApiBase] = useState(CLOUD_API);
+  const [microscopeApiLabel, setMicroscopeApiLabel] = useState<"local" | "cloud">("cloud");
+
   const [procAmpControls, setProcAmpControls] = useState<ProcAmpControl[]>(
     PROCAMP_DEFS.map((item) => ({
       ...item,
@@ -226,9 +230,28 @@ export default function UploadPage() {
     return chunks;
   };
 
-  const fetchMicroscopeStatus = async () => {
+  const detectMicroscopeApi = async () => {
     try {
-      const res = await fetch(`${API_BASE}/microscope/status`, {
+      const res = await fetch(`${LOCAL_API}/microscope/status`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (res.ok) {
+        setMicroscopeApiBase(LOCAL_API);
+        setMicroscopeApiLabel("local");
+        return LOCAL_API;
+      }
+    } catch {}
+
+    setMicroscopeApiBase(CLOUD_API);
+    setMicroscopeApiLabel("cloud");
+    return CLOUD_API;
+  };
+
+  const fetchMicroscopeStatus = async (base?: string) => {
+    const api = base ?? microscopeApiBase;
+    try {
+      const res = await fetch(`${api}/microscope/status`, {
         method: "GET",
         cache: "no-store",
       });
@@ -241,16 +264,18 @@ export default function UploadPage() {
     }
   };
 
-  const loadProcAmpControls = async () => {
+  const loadProcAmpControls = async (base?: string) => {
+    const api = base ?? microscopeApiBase;
+
     const results = await Promise.all(
       PROCAMP_DEFS.map(async (item) => {
         try {
           const rangeRes = await fetch(
-            `${API_BASE}/microscope/video-procamp-range/${item.propValueIndex}`,
+            `${api}/microscope/video-procamp-range/${item.propValueIndex}`,
             { cache: "no-store" }
           );
           const valueRes = await fetch(
-            `${API_BASE}/microscope/video-procamp/${item.propValueIndex}`,
+            `${api}/microscope/video-procamp/${item.propValueIndex}`,
             { cache: "no-store" }
           );
 
@@ -290,8 +315,9 @@ export default function UploadPage() {
   };
 
   const initializeMicroscopePanel = async () => {
-    await fetchMicroscopeStatus();
-    await loadProcAmpControls();
+    const api = await detectMicroscopeApi();
+    await fetchMicroscopeStatus(api);
+    await loadProcAmpControls(api);
   };
 
   const microscopePost = async (path: string, body: Record<string, unknown>) => {
@@ -299,7 +325,7 @@ export default function UploadPage() {
     setCameraError(null);
 
     try {
-      const res = await fetch(`${API_BASE}${path}`, {
+      const res = await fetch(`${microscopeApiBase}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -549,11 +575,15 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
+    detectMicroscopeApi();
+  }, []);
+
+  useEffect(() => {
     if (!statusPollEnabled || !jobId) return;
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE}/analyze/status/${jobId}`, {
+        const res = await fetch(`${CLOUD_API}/analyze/status/${jobId}`, {
           method: "GET",
           cache: "no-store",
         });
@@ -636,7 +666,7 @@ export default function UploadPage() {
     setStatusPollEnabled(false);
 
     try {
-      const startRes = await fetch(`${API_BASE}/analyze/start`, {
+      const startRes = await fetch(`${CLOUD_API}/analyze/start`, {
         method: "POST",
       });
 
@@ -664,7 +694,7 @@ export default function UploadPage() {
           formData.append("files", item.file);
         });
 
-        const uploadRes = await fetch(`${API_BASE}/analyze/upload/${newJobId}`, {
+        const uploadRes = await fetch(`${CLOUD_API}/analyze/upload/${newJobId}`, {
           method: "POST",
           body: formData,
         });
@@ -680,7 +710,7 @@ export default function UploadPage() {
         setUploadedBatches(i + 1);
       }
 
-      const completeRes = await fetch(`${API_BASE}/analyze/complete/${newJobId}`, {
+      const completeRes = await fetch(`${CLOUD_API}/analyze/complete/${newJobId}`, {
         method: "POST",
       });
 
@@ -884,9 +914,20 @@ export default function UploadPage() {
                       <h3 className="text-base font-medium text-white">
                         Live Controls
                       </h3>
-                      {microscopeBusy && (
-                        <span className="text-xs text-cyan-300">Updating...</span>
-                      )}
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] uppercase tracking-wide ${
+                            microscopeApiLabel === "local"
+                              ? "bg-emerald-400/15 text-emerald-300"
+                              : "bg-amber-400/15 text-amber-300"
+                          }`}
+                        >
+                          {microscopeApiLabel === "local" ? "Local" : "Cloud"}
+                        </span>
+                        {microscopeBusy && (
+                          <span className="text-xs text-cyan-300">Updating...</span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="mt-4">
@@ -1307,7 +1348,7 @@ export default function UploadPage() {
                     href={
                       result.zip_url.startsWith("http")
                         ? result.zip_url
-                        : `${API_BASE}${result.zip_url}`
+                        : `${CLOUD_API}${result.zip_url}`
                     }
                     className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
                   >
