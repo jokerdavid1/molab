@@ -26,9 +26,47 @@ type CameraDevice = {
   label: string;
 };
 
+type MicroscopeStatus = {
+  available?: boolean;
+  initialized?: boolean;
+  device_index?: number;
+  device_count?: number;
+  device_name?: string;
+  led_on?: boolean;
+  light_level?: number;
+  auto_exposure?: number | boolean | null;
+  exposure_value?: number | null;
+};
+
+type ProcAmpRange = {
+  prop_value_index: number;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
+};
+
+type ProcAmpControl = {
+  key: string;
+  label: string;
+  propValueIndex: number;
+  supported: boolean;
+  value: number;
+  range: ProcAmpRange | null;
+};
+
 const API_BASE = "https://api.molab.ca";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
+
+const PROCAMP_DEFS = [
+  { key: "brightness", label: "Brightness", propValueIndex: 0 },
+  { key: "contrast", label: "Contrast", propValueIndex: 1 },
+  { key: "saturation", label: "Saturation", propValueIndex: 3 },
+  { key: "sharpness", label: "Sharpness", propValueIndex: 4 },
+  { key: "gamma", label: "Gamma", propValueIndex: 5 },
+  { key: "gain", label: "Gain", propValueIndex: 9 },
+];
 
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
@@ -50,6 +88,18 @@ export default function UploadPage() {
   const [cameraDevices, setCameraDevices] = useState<CameraDevice[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+
+  const [microscopeStatus, setMicroscopeStatus] = useState<MicroscopeStatus | null>(null);
+  const [microscopeBusy, setMicroscopeBusy] = useState(false);
+  const [previewCompact, setPreviewCompact] = useState(false);
+  const [procAmpControls, setProcAmpControls] = useState<ProcAmpControl[]>(
+    PROCAMP_DEFS.map((item) => ({
+      ...item,
+      supported: false,
+      value: 0,
+      range: null,
+    }))
+  );
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -163,6 +213,135 @@ export default function UploadPage() {
     return chunks;
   };
 
+  const fetchMicroscopeStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/microscope/status`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as MicroscopeStatus;
+      setMicroscopeStatus(data);
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const loadProcAmpControls = async () => {
+    const results = await Promise.all(
+      PROCAMP_DEFS.map(async (item) => {
+        try {
+          const rangeRes = await fetch(
+            `${API_BASE}/microscope/video-procamp-range/${item.propValueIndex}`,
+            { cache: "no-store" }
+          );
+          const valueRes = await fetch(
+            `${API_BASE}/microscope/video-procamp/${item.propValueIndex}`,
+            { cache: "no-store" }
+          );
+
+          if (!rangeRes.ok || !valueRes.ok) {
+            return {
+              ...item,
+              supported: false,
+              value: 0,
+              range: null,
+            };
+          }
+
+          const rangeData = (await rangeRes.json()) as ProcAmpRange;
+          const valueData = (await valueRes.json()) as {
+            prop_value_index: number;
+            value: number;
+          };
+
+          return {
+            ...item,
+            supported: true,
+            value: valueData.value,
+            range: rangeData,
+          };
+        } catch {
+          return {
+            ...item,
+            supported: false,
+            value: 0,
+            range: null,
+          };
+        }
+      })
+    );
+
+    setProcAmpControls(results);
+  };
+
+  const initializeMicroscopePanel = async () => {
+    await fetchMicroscopeStatus();
+    await loadProcAmpControls();
+  };
+
+  const microscopePost = async (path: string, body: Record<string, unknown>) => {
+    setMicroscopeBusy(true);
+    setCameraError(null);
+
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || "Microscope update failed.");
+      }
+
+      if (path !== "/microscope/video-procamp") {
+        setMicroscopeStatus(data);
+      }
+
+      return data;
+    } catch (err) {
+      setCameraError(
+        err instanceof Error ? err.message : "Microscope update failed."
+      );
+      throw err;
+    } finally {
+      setMicroscopeBusy(false);
+    }
+  };
+
+  const setLed = async (on: boolean) => {
+    await microscopePost("/microscope/led", { on });
+  };
+
+  const setLightLevel = async (level: number) => {
+    await microscopePost("/microscope/light-level", { level });
+  };
+
+  const setAutoExposure = async (on: boolean) => {
+    await microscopePost("/microscope/auto-exposure", { on });
+  };
+
+  const setExposure = async (value: number) => {
+    await microscopePost("/microscope/exposure", { value });
+  };
+
+  const setProcAmpValue = async (propValueIndex: number, value: number) => {
+    await microscopePost("/microscope/video-procamp", {
+      prop_value_index: propValueIndex,
+      value,
+    });
+
+    setProcAmpControls((prev) =>
+      prev.map((item) =>
+        item.propValueIndex === propValueIndex ? { ...item, value } : item
+      )
+    );
+  };
+
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -252,7 +431,8 @@ export default function UploadPage() {
       });
 
       setCameraOpen(true);
-    } catch (err) {
+      await initializeMicroscopePanel();
+    } catch {
       setCameraError(
         "Could not open the selected microscope/camera. Close any microscope software using it, allow browser camera permission, and try again."
       );
@@ -524,6 +704,7 @@ export default function UploadPage() {
   };
 
   const showBottomSummary = files.length > 0 && !isLoading && !result;
+  const supportedProcAmpControls = procAmpControls.filter((item) => item.supported);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
@@ -588,7 +769,7 @@ export default function UploadPage() {
           </p>
         </div>
 
-        <div className="mx-auto mt-10 w-full max-w-4xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
+        <div className="mx-auto mt-10 w-full max-w-6xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
           <div
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
@@ -639,9 +820,42 @@ export default function UploadPage() {
 
           {(cameraDevices.length > 0 || cameraOpen) && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-              <h2 className="text-lg font-medium text-white">
-                Microscope / Camera Capture
-              </h2>
+              <div className="flex flex-col gap-3 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="text-lg font-medium text-white">
+                    Microscope / Camera Capture
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Click the live image to switch between larger view and side controls.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewCompact((prev) => !prev)}
+                    className="rounded-full border border-cyan-300/30 bg-cyan-400/15 px-4 py-2 text-sm font-medium text-cyan-200 transition hover:scale-105 hover:bg-cyan-400/25"
+                  >
+                    {previewCompact ? "Expand Preview" : "Show Side Controls"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={capturePhoto}
+                    className="rounded-full bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
+                  >
+                    Capture Photo
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
+                  >
+                    Done Capturing
+                  </button>
+                </div>
+              </div>
 
               {cameraDevices.length > 0 && (
                 <div className="mt-4">
@@ -666,40 +880,223 @@ export default function UploadPage() {
                 </div>
               )}
 
-              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="block min-h-[320px] w-full object-contain bg-black"
-                />
+              <div
+                className={`mt-4 grid gap-4 ${
+                  previewCompact
+                    ? "xl:grid-cols-[minmax(0,1fr)_360px]"
+                    : "xl:grid-cols-[minmax(0,1.55fr)_320px]"
+                }`}
+              >
+                <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewCompact((prev) => !prev)}
+                    className="block w-full overflow-hidden rounded-2xl border border-white/10 bg-black text-left transition hover:border-cyan-300/40"
+                  >
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className={`block w-full object-contain bg-black transition-all duration-300 ${
+                        previewCompact ? "min-h-[300px] max-h-[420px]" : "min-h-[420px] max-h-[620px]"
+                      }`}
+                    />
+                  </button>
+
+                  <p className="mt-3 text-center text-sm text-slate-400">
+                    Each captured image is automatically added to your selected files below.
+                  </p>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 xl:sticky xl:top-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-medium text-white">
+                        Live Controls
+                      </h3>
+                      {microscopeBusy && (
+                        <span className="text-xs text-cyan-300">Updating...</span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setLed(!(microscopeStatus?.led_on ?? true))}
+                        disabled={microscopeBusy}
+                        className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                          microscopeStatus?.led_on
+                            ? "border-cyan-300/30 bg-cyan-400/20 text-cyan-200"
+                            : "border-white/10 bg-white/5 text-slate-300"
+                        }`}
+                      >
+                        LED {microscopeStatus?.led_on ? "On" : "Off"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAutoExposure(!(Boolean(microscopeStatus?.auto_exposure)))
+                        }
+                        disabled={microscopeBusy}
+                        className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                          Boolean(microscopeStatus?.auto_exposure)
+                            ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-200"
+                            : "border-white/10 bg-white/5 text-slate-300"
+                        }`}
+                      >
+                        Auto Exp {Boolean(microscopeStatus?.auto_exposure) ? "On" : "Off"}
+                      </button>
+                    </div>
+
+                    <div className="mt-5 space-y-5">
+                      <div>
+                        <div className="mb-2 flex items-center justify-between text-sm">
+                          <span className="text-slate-300">Light level</span>
+                          <span className="text-cyan-300">
+                            {microscopeStatus?.light_level ?? 6}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={6}
+                          step={1}
+                          value={microscopeStatus?.light_level ?? 6}
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            setMicroscopeStatus((prev) =>
+                              prev ? { ...prev, light_level: value, led_on: true } : prev
+                            );
+                          }}
+                          onMouseUp={(e) =>
+                            setLightLevel(Number((e.target as HTMLInputElement).value))
+                          }
+                          onTouchEnd={(e) =>
+                            setLightLevel(Number((e.target as HTMLInputElement).value))
+                          }
+                          className="w-full accent-cyan-400"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-2 flex items-center justify-between text-sm">
+                          <span className="text-slate-300">Exposure</span>
+                          <span className="text-cyan-300">
+                            {microscopeStatus?.exposure_value ?? 1}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={2000}
+                          step={1}
+                          disabled={Boolean(microscopeStatus?.auto_exposure)}
+                          value={microscopeStatus?.exposure_value ?? 1}
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            setMicroscopeStatus((prev) =>
+                              prev ? { ...prev, exposure_value: value } : prev
+                            );
+                          }}
+                          onMouseUp={(e) =>
+                            setExposure(Number((e.target as HTMLInputElement).value))
+                          }
+                          onTouchEnd={(e) =>
+                            setExposure(Number((e.target as HTMLInputElement).value))
+                          }
+                          className="w-full accent-cyan-400 disabled:opacity-40"
+                        />
+                      </div>
+                    </div>
+
+                    {microscopeStatus && (
+                      <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-400">
+                        <div className="flex items-center justify-between">
+                          <span>SDK device</span>
+                          <span className="text-slate-200">
+                            {microscopeStatus.device_name || "Unknown"}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span>Devices found</span>
+                          <span className="text-slate-200">
+                            {microscopeStatus.device_count ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {supportedProcAmpControls.length > 0 && (
+                      <div className="mt-5 border-t border-white/10 pt-5">
+                        <h4 className="text-sm font-medium text-white">
+                          Image Properties
+                        </h4>
+
+                        <div className="mt-4 space-y-5">
+                          {supportedProcAmpControls.map((control) => {
+                            const min = control.range?.min ?? 0;
+                            const max = control.range?.max ?? 100;
+                            const step =
+                              control.range?.step && control.range.step > 0
+                                ? control.range.step
+                                : 1;
+
+                            return (
+                              <div key={control.key}>
+                                <div className="mb-2 flex items-center justify-between text-sm">
+                                  <span className="text-slate-300">{control.label}</span>
+                                  <span className="text-cyan-300">{control.value}</span>
+                                </div>
+
+                                <input
+                                  type="range"
+                                  min={min}
+                                  max={max}
+                                  step={step}
+                                  value={control.value}
+                                  onChange={(e) => {
+                                    const value = Number(e.target.value);
+                                    setProcAmpControls((prev) =>
+                                      prev.map((item) =>
+                                        item.key === control.key
+                                          ? { ...item, value }
+                                          : item
+                                      )
+                                    );
+                                  }}
+                                  onMouseUp={(e) =>
+                                    setProcAmpValue(
+                                      control.propValueIndex,
+                                      Number((e.target as HTMLInputElement).value)
+                                    )
+                                  }
+                                  onTouchEnd={(e) =>
+                                    setProcAmpValue(
+                                      control.propValueIndex,
+                                      Number((e.target as HTMLInputElement).value)
+                                    )
+                                  }
+                                  className="w-full accent-cyan-400"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {supportedProcAmpControls.length === 0 && (
+                      <div className="mt-5 rounded-xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm text-amber-200">
+                        This camera did not expose extra image-property sliders through the SDK.
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <canvas ref={canvasRef} className="hidden" />
-
-              <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={capturePhoto}
-                  className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
-                >
-                  Capture Photo
-                </button>
-
-                <button
-                  type="button"
-                  onClick={stopCamera}
-                  className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
-                >
-                  Done Capturing
-                </button>
-              </div>
-
-              <p className="mt-3 text-center text-sm text-slate-400">
-                Each captured image is automatically added to your selected files
-                below. You can keep taking more pictures.
-              </p>
             </div>
           )}
 
