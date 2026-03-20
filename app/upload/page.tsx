@@ -31,48 +31,25 @@ type BackendCameraDevice = {
   name: string;
 };
 
-type ProcAmpRange = {
-  prop_index: number;
-  min: number;
-  max: number;
-  step: number;
-  default: number;
-} | null;
-
-type CameraSettings = {
+type CameraSettingsResponse = {
   device_index?: number;
+  led_on?: boolean;
+  q1?: number;
+  q2?: number;
+  q3?: number;
+  q4?: number;
   auto_exposure?: number | boolean | null;
   exposure_value?: number | null;
-  brightness?: number | null;
-  contrast?: number | null;
-  hue?: number | null;
-  saturation?: number | null;
-  sharpness?: number | null;
-  gamma?: number | null;
-  white_balance?: number | null;
-  ranges?: {
-    brightness?: ProcAmpRange;
-    contrast?: ProcAmpRange;
-    hue?: ProcAmpRange;
-    saturation?: ProcAmpRange;
-    sharpness?: ProcAmpRange;
-    gamma?: ProcAmpRange;
-    white_balance?: ProcAmpRange;
-  };
 };
 
 type CameraSettingsPayload = {
   led_on?: boolean;
-  light_level?: number;
-  flc_quadrant?: number;
+  q1?: number;
+  q2?: number;
+  q3?: number;
+  q4?: number;
   auto_exposure?: boolean;
   exposure_value?: number;
-  brightness?: number;
-  contrast?: number;
-  saturation?: number;
-  sharpness?: number;
-  gamma?: number;
-  white_balance?: number;
 };
 
 const API_BASE = "https://api.molab.ca";
@@ -106,26 +83,21 @@ export default function UploadPage() {
   const [backendCameraDevices, setBackendCameraDevices] = useState<
     BackendCameraDevice[]
   >([]);
-  const [selectedBackendCameraIndex, setSelectedBackendCameraIndex] = useState(0);
+  const [selectedBackendCameraIndex, setSelectedBackendCameraIndex] =
+    useState(0);
   const [showCameraSettings, setShowCameraSettings] = useState(false);
   const [cameraSettingsLoading, setCameraSettingsLoading] = useState(false);
   const [cameraSettingsError, setCameraSettingsError] = useState<string | null>(
     null
   );
-  const [cameraSettings, setCameraSettings] = useState<CameraSettings | null>(
-    null
-  );
+
   const [ledOn, setLedOn] = useState(true);
-  const [lightLevel, setLightLevel] = useState(4);
-  const [flcQuadrant, setFlcQuadrant] = useState(1);
+  const [q1, setQ1] = useState(0);
+  const [q2, setQ2] = useState(0);
+  const [q3, setQ3] = useState(0);
+  const [q4, setQ4] = useState(0);
   const [autoExposure, setAutoExposure] = useState(false);
   const [exposureValue, setExposureValue] = useState(120);
-  const [brightness, setBrightness] = useState(128);
-  const [contrast, setContrast] = useState(16);
-  const [saturation, setSaturation] = useState(16);
-  const [sharpness, setSharpness] = useState(10);
-  const [gamma, setGamma] = useState(64);
-  const [whiteBalance, setWhiteBalance] = useState(128);
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -154,57 +126,6 @@ export default function UploadPage() {
   const computedProgressPercent =
     totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
-  const rangeOrFallback = (
-    key:
-      | "brightness"
-      | "contrast"
-      | "saturation"
-      | "sharpness"
-      | "gamma"
-      | "white_balance",
-    fallback: { min: number; max: number; step: number }
-  ) => {
-    const range = cameraSettings?.ranges?.[key];
-    if (!range) return fallback;
-    return {
-      min: range.min,
-      max: range.max,
-      step: range.step || 1,
-    };
-  };
-
-  const exposureRange = { min: 0, max: 255, step: 1 };
-  const brightnessRange = rangeOrFallback("brightness", {
-    min: 0,
-    max: 255,
-    step: 1,
-  });
-  const contrastRange = rangeOrFallback("contrast", {
-    min: 0,
-    max: 31,
-    step: 1,
-  });
-  const saturationRange = rangeOrFallback("saturation", {
-    min: 0,
-    max: 31,
-    step: 1,
-  });
-  const sharpnessRange = rangeOrFallback("sharpness", {
-    min: 0,
-    max: 15,
-    step: 1,
-  });
-  const gammaRange = rangeOrFallback("gamma", {
-    min: 0,
-    max: 127,
-    step: 1,
-  });
-  const whiteBalanceRange = rangeOrFallback("white_balance", {
-    min: 0,
-    max: 255,
-    step: 1,
-  });
-
   const resetAnalysisState = () => {
     setError(null);
     setResult(null);
@@ -218,10 +139,24 @@ export default function UploadPage() {
     setStatusPollEnabled(false);
   };
 
-  const syncCameraSettingsState = (settings: CameraSettings) => {
-    setCameraSettings(settings);
+  const syncCameraSettingsState = (settings: CameraSettingsResponse) => {
     if (typeof settings.device_index === "number") {
       setSelectedBackendCameraIndex(settings.device_index);
+    }
+    if (typeof settings.led_on === "boolean") {
+      setLedOn(settings.led_on);
+    }
+    if (typeof settings.q1 === "number") {
+      setQ1(settings.q1);
+    }
+    if (typeof settings.q2 === "number") {
+      setQ2(settings.q2);
+    }
+    if (typeof settings.q3 === "number") {
+      setQ3(settings.q3);
+    }
+    if (typeof settings.q4 === "number") {
+      setQ4(settings.q4);
     }
     if (settings.auto_exposure != null) {
       setAutoExposure(Boolean(settings.auto_exposure));
@@ -229,79 +164,60 @@ export default function UploadPage() {
     if (typeof settings.exposure_value === "number") {
       setExposureValue(settings.exposure_value);
     }
-    if (typeof settings.brightness === "number") {
-      setBrightness(settings.brightness);
-    }
-    if (typeof settings.contrast === "number") {
-      setContrast(settings.contrast);
-    }
-    if (typeof settings.saturation === "number") {
-      setSaturation(settings.saturation);
-    }
-    if (typeof settings.sharpness === "number") {
-      setSharpness(settings.sharpness);
-    }
-    if (typeof settings.gamma === "number") {
-      setGamma(settings.gamma);
-    }
-    if (typeof settings.white_balance === "number") {
-      setWhiteBalance(settings.white_balance);
-    }
   };
 
   const loadBackendCameraDevices = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/camera/devices`, {
-        method: "GET",
-        cache: "no-store",
-      });
+    const res = await fetch(`${API_BASE}/camera/devices`, {
+      method: "GET",
+      cache: "no-store",
+    });
 
-      if (!res.ok) {
-        throw new Error("Could not load microscope devices.");
-      }
+    const data = await res.json();
 
-      const data = await res.json();
-      const devices: BackendCameraDevice[] = Array.isArray(data.devices)
-        ? data.devices
-        : [];
+    if (!res.ok) {
+      throw new Error(data?.detail || "Could not load microscope devices.");
+    }
 
-      setBackendCameraDevices(devices);
+    const devices: BackendCameraDevice[] = Array.isArray(data.devices)
+      ? data.devices
+      : [];
 
-      let nextIndex =
-        typeof data.selected_device_index === "number"
-          ? data.selected_device_index
-          : 0;
+    setBackendCameraDevices(devices);
 
-      const dinoLite =
-        devices.find((d) => d.name.toLowerCase().includes("dino")) || devices[0];
+    let nextIndex =
+      typeof data.selected_device_index === "number"
+        ? data.selected_device_index
+        : 0;
 
-      if (dinoLite) {
-        nextIndex = dinoLite.index;
-      }
+    const dinoDevice =
+      devices.find((d) => d.name.toLowerCase().includes("dino")) || devices[0];
 
-      setSelectedBackendCameraIndex(nextIndex);
+    if (dinoDevice) {
+      nextIndex = dinoDevice.index;
+    }
 
-      await fetch(`${API_BASE}/camera/select`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ device_index: nextIndex }),
-      });
-    } catch (err) {
-      setCameraSettingsError(
-        err instanceof Error
-          ? err.message
-          : "Could not connect to microscope settings."
-      );
+    setSelectedBackendCameraIndex(nextIndex);
+
+    const selectRes = await fetch(`${API_BASE}/camera/select`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ device_index: nextIndex }),
+    });
+
+    const selectData = await selectRes.json();
+
+    if (!selectRes.ok) {
+      throw new Error(selectData?.detail || "Could not select microscope.");
     }
   };
 
   const loadCameraSettings = async () => {
-    try {
-      setCameraSettingsLoading(true);
-      setCameraSettingsError(null);
+    setCameraSettingsLoading(true);
+    setCameraSettingsError(null);
 
+    try {
       const res = await fetch(`${API_BASE}/camera/settings`, {
         method: "GET",
         cache: "no-store",
@@ -314,7 +230,6 @@ export default function UploadPage() {
       }
 
       syncCameraSettingsState(data);
-      setLedOn(true);
     } catch (err) {
       setCameraSettingsError(
         err instanceof Error
@@ -532,6 +447,7 @@ export default function UploadPage() {
   const openCamera = async () => {
     try {
       setCameraError(null);
+      setCameraSettingsError(null);
 
       const tempStream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -542,20 +458,28 @@ export default function UploadPage() {
       await loadCameraDevices();
 
       setTimeout(async () => {
-        const preferredId =
-          selectedCameraId ||
-          (await navigator.mediaDevices.enumerateDevices())
-            .filter((d) => d.kind === "videoinput")[0]?.deviceId ||
-          "";
+        try {
+          const preferredId =
+            selectedCameraId ||
+            (await navigator.mediaDevices.enumerateDevices())
+              .filter((d) => d.kind === "videoinput")[0]?.deviceId ||
+            "";
 
-        if (preferredId) {
-          await startCameraStream(preferredId);
-        } else {
-          await startCameraStream();
+          if (preferredId) {
+            await startCameraStream(preferredId);
+          } else {
+            await startCameraStream();
+          }
+
+          await loadBackendCameraDevices();
+          await loadCameraSettings();
+        } catch (err) {
+          setCameraSettingsError(
+            err instanceof Error
+              ? err.message
+              : "Could not connect microscope settings."
+          );
         }
-
-        await loadBackendCameraDevices();
-        await loadCameraSettings();
       }, 100);
     } catch {
       setCameraError(
@@ -792,7 +716,9 @@ export default function UploadPage() {
 
         if (!uploadRes.ok) {
           throw new Error(
-            uploadData?.error || uploadData?.detail || "Batch upload failed."
+            uploadData?.error ||
+              uploadData?.detail ||
+              "Batch upload failed."
           );
         }
 
@@ -1021,10 +947,11 @@ export default function UploadPage() {
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h3 className="text-base font-medium text-white">
-                          Microscope Settings
+                          Microscope Lighting Settings
                         </h3>
                         <p className="mt-1 text-sm text-slate-400">
-                          Adjust the microscope live and watch the preview update.
+                          Control each light quadrant separately and see the
+                          changes live.
                         </p>
                       </div>
 
@@ -1058,289 +985,233 @@ export default function UploadPage() {
                       </div>
                     )}
 
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-white">
+                            Main LED Power
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            Turn the microscope LED system on or off.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const next = !ledOn;
+                            setLedOn(next);
+                            await applyCameraSettings({ led_on: next });
+                          }}
+                          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                            ledOn
+                              ? "bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30"
+                              : "bg-white/10 text-slate-200 hover:bg-white/15"
+                          }`}
+                        >
+                          {ledOn ? "On" : "Off"}
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                         <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium text-white">
-                              LED Light
-                            </p>
-                            <p className="mt-1 text-xs text-slate-400">
-                              Turn microscope light on or off.
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const next = !ledOn;
-                              setLedOn(next);
-                              await applyCameraSettings({ led_on: next });
-                            }}
-                            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                              ledOn
-                                ? "bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30"
-                                : "bg-white/10 text-slate-200 hover:bg-white/15"
-                            }`}
-                          >
-                            {ledOn ? "On" : "Off"}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <label className="block text-sm font-medium text-white">
-                          Light quadrant
-                        </label>
-                        <p className="mt-1 text-xs text-slate-400">
-                          Choose the microscope lighting quadrant.
-                        </p>
-                        <select
-                          value={flcQuadrant}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setFlcQuadrant(next);
-                            await applyCameraSettings({
-                              light_level: lightLevel,
-                              flc_quadrant: next,
-                            });
-                          }}
-                          className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-                        >
-                          {[1, 2, 3, 4].map((value) => (
-                            <option
-                              key={value}
-                              value={value}
-                              className="bg-slate-900 text-white"
-                            >
-                              Quadrant {value}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:col-span-2">
-                        <div className="flex items-center justify-between gap-3">
                           <label className="text-sm font-medium text-white">
-                            Light level
+                            Quadrant 1
                           </label>
-                          <span className="text-sm text-cyan-300">
-                            {lightLevel}
-                          </span>
+                          <span className="text-sm text-cyan-300">{q1}</span>
                         </div>
                         <input
                           type="range"
-                          min={1}
+                          min={0}
                           max={6}
                           step={1}
-                          value={lightLevel}
+                          value={q1}
                           onChange={async (e) => {
                             const next = Number(e.target.value);
-                            setLightLevel(next);
+                            setQ1(next);
+                            await applyCameraSettings({ q1: next });
+                          }}
+                          className="mt-3 w-full accent-cyan-400"
+                        />
+                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                          <span>Off</span>
+                          <span>Max</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-sm font-medium text-white">
+                            Quadrant 2
+                          </label>
+                          <span className="text-sm text-cyan-300">{q2}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={6}
+                          step={1}
+                          value={q2}
+                          onChange={async (e) => {
+                            const next = Number(e.target.value);
+                            setQ2(next);
+                            await applyCameraSettings({ q2: next });
+                          }}
+                          className="mt-3 w-full accent-cyan-400"
+                        />
+                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                          <span>Off</span>
+                          <span>Max</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-sm font-medium text-white">
+                            Quadrant 3
+                          </label>
+                          <span className="text-sm text-cyan-300">{q3}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={6}
+                          step={1}
+                          value={q3}
+                          onChange={async (e) => {
+                            const next = Number(e.target.value);
+                            setQ3(next);
+                            await applyCameraSettings({ q3: next });
+                          }}
+                          className="mt-3 w-full accent-cyan-400"
+                        />
+                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                          <span>Off</span>
+                          <span>Max</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-sm font-medium text-white">
+                            Quadrant 4
+                          </label>
+                          <span className="text-sm text-cyan-300">{q4}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={6}
+                          step={1}
+                          value={q4}
+                          onChange={async (e) => {
+                            const next = Number(e.target.value);
+                            setQ4(next);
+                            await applyCameraSettings({ q4: next });
+                          }}
+                          className="mt-3 w-full accent-cyan-400"
+                        />
+                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                          <span>Off</span>
+                          <span>Max</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-white">
+                            Auto Exposure
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            Let the microscope adjust exposure automatically.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const next = !autoExposure;
+                            setAutoExposure(next);
+                            await applyCameraSettings({ auto_exposure: next });
+                          }}
+                          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                            autoExposure
+                              ? "bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30"
+                              : "bg-white/10 text-slate-200 hover:bg-white/15"
+                          }`}
+                        >
+                          {autoExposure ? "On" : "Off"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-white">
+                          Exposure Value
+                        </label>
+                        <span className="text-sm text-cyan-300">
+                          {exposureValue}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={255}
+                        step={1}
+                        value={exposureValue}
+                        onChange={async (e) => {
+                          const next = Number(e.target.value);
+                          setExposureValue(next);
+                          await applyCameraSettings({ exposure_value: next });
+                        }}
+                        className="mt-3 w-full accent-cyan-400"
+                      />
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:col-span-2">
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setQ1(6);
+                            setQ2(6);
+                            setQ3(6);
+                            setQ4(6);
                             await applyCameraSettings({
-                              light_level: next,
-                              flc_quadrant: flcQuadrant,
+                              q1: 6,
+                              q2: 6,
+                              q3: 6,
+                              q4: 6,
                             });
                           }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                      </div>
+                          className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-5 py-2 text-sm font-medium text-cyan-200 transition hover:scale-105 hover:bg-cyan-400/30"
+                        >
+                          All On
+                        </button>
 
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:col-span-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium text-white">
-                              Auto exposure
-                            </p>
-                            <p className="mt-1 text-xs text-slate-400">
-                              Turn automatic exposure adjustment on or off.
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const next = !autoExposure;
-                              setAutoExposure(next);
-                              await applyCameraSettings({ auto_exposure: next });
-                            }}
-                            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                              autoExposure
-                                ? "bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30"
-                                : "bg-white/10 text-slate-200 hover:bg-white/15"
-                            }`}
-                          >
-                            {autoExposure ? "On" : "Off"}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:col-span-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Exposure value
-                          </label>
-                          <span className="text-sm text-cyan-300">
-                            {exposureValue}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={exposureRange.min}
-                          max={exposureRange.max}
-                          step={exposureRange.step}
-                          value={exposureValue}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setExposureValue(next);
-                            await applyCameraSettings({ exposure_value: next });
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setQ1(0);
+                            setQ2(0);
+                            setQ3(0);
+                            setQ4(0);
+                            await applyCameraSettings({
+                              q1: 0,
+                              q2: 0,
+                              q3: 0,
+                              q4: 0,
+                            });
                           }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Sharpness
-                          </label>
-                          <span className="text-sm text-cyan-300">
-                            {sharpness}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={sharpnessRange.min}
-                          max={sharpnessRange.max}
-                          step={sharpnessRange.step}
-                          value={sharpness}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setSharpness(next);
-                            await applyCameraSettings({ sharpness: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Brightness
-                          </label>
-                          <span className="text-sm text-cyan-300">
-                            {brightness}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={brightnessRange.min}
-                          max={brightnessRange.max}
-                          step={brightnessRange.step}
-                          value={brightness}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setBrightness(next);
-                            await applyCameraSettings({ brightness: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Contrast
-                          </label>
-                          <span className="text-sm text-cyan-300">
-                            {contrast}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={contrastRange.min}
-                          max={contrastRange.max}
-                          step={contrastRange.step}
-                          value={contrast}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setContrast(next);
-                            await applyCameraSettings({ contrast: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Saturation
-                          </label>
-                          <span className="text-sm text-cyan-300">
-                            {saturation}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={saturationRange.min}
-                          max={saturationRange.max}
-                          step={saturationRange.step}
-                          value={saturation}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setSaturation(next);
-                            await applyCameraSettings({ saturation: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Gamma
-                          </label>
-                          <span className="text-sm text-cyan-300">
-                            {gamma}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={gammaRange.min}
-                          max={gammaRange.max}
-                          step={gammaRange.step}
-                          value={gamma}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setGamma(next);
-                            await applyCameraSettings({ gamma: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:col-span-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            White balance
-                          </label>
-                          <span className="text-sm text-cyan-300">
-                            {whiteBalance}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={whiteBalanceRange.min}
-                          max={whiteBalanceRange.max}
-                          step={whiteBalanceRange.step}
-                          value={whiteBalance}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setWhiteBalance(next);
-                            await applyCameraSettings({ white_balance: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
+                          className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
+                        >
+                          All Off
+                        </button>
                       </div>
                     </div>
                   </div>
