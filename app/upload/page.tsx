@@ -26,32 +26,6 @@ type CameraDevice = {
   label: string;
 };
 
-type BackendCameraDevice = {
-  index: number;
-  name: string;
-};
-
-type CameraSettingsResponse = {
-  device_index?: number;
-  led_on?: boolean;
-  q1?: number;
-  q2?: number;
-  q3?: number;
-  q4?: number;
-  auto_exposure?: number | boolean | null;
-  exposure_value?: number | null;
-};
-
-type CameraSettingsPayload = {
-  led_on?: boolean;
-  q1?: number;
-  q2?: number;
-  q3?: number;
-  q4?: number;
-  auto_exposure?: boolean;
-  exposure_value?: number;
-};
-
 const API_BASE = "https://api.molab.ca";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
@@ -61,44 +35,20 @@ export default function UploadPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-
   const [jobId, setJobId] = useState<string | null>(null);
   const [phase, setPhase] = useState<
     "idle" | "uploading" | "processing" | "completed" | "failed"
   >("idle");
-
   const [currentStep, setCurrentStep] = useState("Idle");
   const [progressText, setProgressText] = useState<string | null>(null);
-
   const [uploadedBatches, setUploadedBatches] = useState(0);
   const [totalBatches, setTotalBatches] = useState(0);
   const [processedImages, setProcessedImages] = useState(0);
   const [statusPollEnabled, setStatusPollEnabled] = useState(false);
-
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraDevices, setCameraDevices] = useState<CameraDevice[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
-
-  const [backendCameraDevices, setBackendCameraDevices] = useState<
-    BackendCameraDevice[]
-  >([]);
-  const [selectedBackendCameraIndex, setSelectedBackendCameraIndex] =
-    useState(0);
-  const [showCameraSettings, setShowCameraSettings] = useState(false);
-  const [cameraSettingsLoading, setCameraSettingsLoading] = useState(false);
-  const [cameraSettingsError, setCameraSettingsError] = useState<string | null>(
-    null
-  );
-
-  const [ledOn, setLedOn] = useState(true);
-  const [q1, setQ1] = useState(0);
-  const [q2, setQ2] = useState(0);
-  const [q3, setQ3] = useState(0);
-  const [q4, setQ4] = useState(0);
-  const [autoExposure, setAutoExposure] = useState(false);
-  const [exposureValue, setExposureValue] = useState(120);
-
   const [isDragging, setIsDragging] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -122,7 +72,6 @@ export default function UploadPage() {
   const totalSteps = totalBatches + totalImages;
   const completedSteps =
     phase === "completed" ? totalSteps : uploadedBatches + processedImages;
-
   const computedProgressPercent =
     totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
@@ -137,138 +86,6 @@ export default function UploadPage() {
     setTotalBatches(0);
     setProcessedImages(0);
     setStatusPollEnabled(false);
-  };
-
-  const syncCameraSettingsState = (settings: CameraSettingsResponse) => {
-    if (typeof settings.device_index === "number") {
-      setSelectedBackendCameraIndex(settings.device_index);
-    }
-    if (typeof settings.led_on === "boolean") {
-      setLedOn(settings.led_on);
-    }
-    if (typeof settings.q1 === "number") {
-      setQ1(settings.q1);
-    }
-    if (typeof settings.q2 === "number") {
-      setQ2(settings.q2);
-    }
-    if (typeof settings.q3 === "number") {
-      setQ3(settings.q3);
-    }
-    if (typeof settings.q4 === "number") {
-      setQ4(settings.q4);
-    }
-    if (settings.auto_exposure != null) {
-      setAutoExposure(Boolean(settings.auto_exposure));
-    }
-    if (typeof settings.exposure_value === "number") {
-      setExposureValue(settings.exposure_value);
-    }
-  };
-
-  const loadBackendCameraDevices = async () => {
-    const res = await fetch(`${API_BASE}/camera/devices`, {
-      method: "GET",
-      cache: "no-store",
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data?.detail || "Could not load microscope devices.");
-    }
-
-    const devices: BackendCameraDevice[] = Array.isArray(data.devices)
-      ? data.devices
-      : [];
-
-    setBackendCameraDevices(devices);
-
-    let nextIndex =
-      typeof data.selected_device_index === "number"
-        ? data.selected_device_index
-        : 0;
-
-    const dinoDevice =
-      devices.find((d) => d.name.toLowerCase().includes("dino")) || devices[0];
-
-    if (dinoDevice) {
-      nextIndex = dinoDevice.index;
-    }
-
-    setSelectedBackendCameraIndex(nextIndex);
-
-    const selectRes = await fetch(`${API_BASE}/camera/select`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ device_index: nextIndex }),
-    });
-
-    const selectData = await selectRes.json();
-
-    if (!selectRes.ok) {
-      throw new Error(selectData?.detail || "Could not select microscope.");
-    }
-  };
-
-  const loadCameraSettings = async () => {
-    setCameraSettingsLoading(true);
-    setCameraSettingsError(null);
-
-    try {
-      const res = await fetch(`${API_BASE}/camera/settings`, {
-        method: "GET",
-        cache: "no-store",
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.detail || "Could not load microscope settings.");
-      }
-
-      syncCameraSettingsState(data);
-    } catch (err) {
-      setCameraSettingsError(
-        err instanceof Error
-          ? err.message
-          : "Could not load microscope settings."
-      );
-    } finally {
-      setCameraSettingsLoading(false);
-    }
-  };
-
-  const applyCameraSettings = async (payload: CameraSettingsPayload) => {
-    try {
-      setCameraSettingsError(null);
-
-      const res = await fetch(`${API_BASE}/camera/settings`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.detail || "Could not update microscope settings.");
-      }
-
-      if (data?.settings) {
-        syncCameraSettingsState(data.settings);
-      }
-    } catch (err) {
-      setCameraSettingsError(
-        err instanceof Error
-          ? err.message
-          : "Could not update microscope settings."
-      );
-    }
   };
 
   const addFiles = (incomingFiles: File[]) => {
@@ -317,10 +134,8 @@ export default function UploadPage() {
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-
     const relatedTarget = e.relatedTarget as Node | null;
     if (relatedTarget && e.currentTarget.contains(relatedTarget)) return;
-
     setIsDragging(false);
   };
 
@@ -361,12 +176,12 @@ export default function UploadPage() {
     }
 
     setCameraOpen(false);
-    setShowCameraSettings(false);
   };
 
   const loadCameraDevices = async () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
+
       const videos = devices
         .filter((d) => d.kind === "videoinput")
         .map((d, index) => ({
@@ -437,7 +252,7 @@ export default function UploadPage() {
       });
 
       setCameraOpen(true);
-    } catch {
+    } catch (err) {
       setCameraError(
         "Could not open the selected microscope/camera. Close any microscope software using it, allow browser camera permission, and try again."
       );
@@ -447,38 +262,28 @@ export default function UploadPage() {
   const openCamera = async () => {
     try {
       setCameraError(null);
-      setCameraSettingsError(null);
 
       const tempStream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: false,
       });
+
       tempStream.getTracks().forEach((track) => track.stop());
 
       await loadCameraDevices();
 
       setTimeout(async () => {
-        try {
-          const preferredId =
-            selectedCameraId ||
-            (await navigator.mediaDevices.enumerateDevices())
-              .filter((d) => d.kind === "videoinput")[0]?.deviceId ||
-            "";
+        const preferredId =
+          selectedCameraId ||
+          (await navigator.mediaDevices.enumerateDevices()).filter(
+            (d) => d.kind === "videoinput"
+          )[0]?.deviceId ||
+          "";
 
-          if (preferredId) {
-            await startCameraStream(preferredId);
-          } else {
-            await startCameraStream();
-          }
-
-          await loadBackendCameraDevices();
-          await loadCameraSettings();
-        } catch (err) {
-          setCameraSettingsError(
-            err instanceof Error
-              ? err.message
-              : "Could not connect microscope settings."
-          );
+        if (preferredId) {
+          await startCameraStream(preferredId);
+        } else {
+          await startCameraStream();
         }
       }, 100);
     } catch {
@@ -499,39 +304,6 @@ export default function UploadPage() {
     }
   };
 
-  const handleBackendCameraChange = async (
-    e: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const newIndex = Number(e.target.value);
-    setSelectedBackendCameraIndex(newIndex);
-
-    try {
-      setCameraSettingsError(null);
-
-      const res = await fetch(`${API_BASE}/camera/select`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ device_index: newIndex }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.detail || "Could not select microscope device.");
-      }
-
-      await loadCameraSettings();
-    } catch (err) {
-      setCameraSettingsError(
-        err instanceof Error
-          ? err.message
-          : "Could not select microscope device."
-      );
-    }
-  };
-
   const capturePhoto = async () => {
     try {
       if (!videoRef.current || !canvasRef.current) {
@@ -541,7 +313,6 @@ export default function UploadPage() {
 
       const video = videoRef.current;
       const canvas = canvasRef.current;
-
       const width = video.videoWidth;
       const height = video.videoHeight;
 
@@ -581,7 +352,6 @@ export default function UploadPage() {
       );
 
       captureCountRef.current += 1;
-
       setFiles((prev) => [...prev, file]);
       resetAnalysisState();
       setCameraError(null);
@@ -603,7 +373,6 @@ export default function UploadPage() {
         if (!res.ok) return;
 
         const data: AnalysisResponse = await res.json();
-
         const total = data.total_files ?? files.length;
         const done = data.processed_files ?? 0;
 
@@ -611,6 +380,7 @@ export default function UploadPage() {
           setPhase("processing");
           setProcessedImages(done);
           setCurrentStep("Processing images...");
+
           if (done < total) {
             setProgressText(`Image ${done + 1} of ${total}`);
           } else {
@@ -716,29 +486,22 @@ export default function UploadPage() {
 
         if (!uploadRes.ok) {
           throw new Error(
-            uploadData?.error ||
-              uploadData?.detail ||
-              "Batch upload failed."
+            uploadData?.error || uploadData?.detail || "Batch upload failed."
           );
         }
 
         setUploadedBatches(i + 1);
       }
 
-      const completeRes = await fetch(
-        `${API_BASE}/analyze/complete/${newJobId}`,
-        {
-          method: "POST",
-        }
-      );
+      const completeRes = await fetch(`${API_BASE}/analyze/complete/${newJobId}`, {
+        method: "POST",
+      });
 
       const completeData = await completeRes.json();
 
       if (!completeRes.ok) {
         throw new Error(
-          completeData?.error ||
-            completeData?.detail ||
-            "Failed to start analysis."
+          completeData?.error || completeData?.detail || "Failed to start analysis."
         );
       }
 
@@ -926,297 +689,12 @@ export default function UploadPage() {
 
                 <button
                   type="button"
-                  onClick={() => setShowCameraSettings((prev) => !prev)}
-                  className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 transition hover:scale-105 hover:bg-cyan-400/30"
-                >
-                  {showCameraSettings ? "Hide Settings" : "Settings"}
-                </button>
-
-                <button
-                  type="button"
                   onClick={stopCamera}
                   className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
                 >
                   Done Capturing
                 </button>
               </div>
-
-              {showCameraSettings && (
-                <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-white/[0.04] p-5">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h3 className="text-base font-medium text-white">
-                          Microscope Lighting Settings
-                        </h3>
-                        <p className="mt-1 text-sm text-slate-400">
-                          Control each light quadrant separately and see the
-                          changes live.
-                        </p>
-                      </div>
-
-                      {cameraSettingsLoading && (
-                        <div className="text-sm text-cyan-300">
-                          Loading settings...
-                        </div>
-                      )}
-                    </div>
-
-                    {backendCameraDevices.length > 0 && (
-                      <div>
-                        <label className="mb-2 block text-sm text-slate-300">
-                          Microscope device
-                        </label>
-                        <select
-                          value={selectedBackendCameraIndex}
-                          onChange={handleBackendCameraChange}
-                          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-                        >
-                          {backendCameraDevices.map((device) => (
-                            <option
-                              key={device.index}
-                              value={device.index}
-                              className="bg-slate-900 text-white"
-                            >
-                              {device.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-white">
-                            Main LED Power
-                          </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            Turn the microscope LED system on or off.
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const next = !ledOn;
-                            setLedOn(next);
-                            await applyCameraSettings({ led_on: next });
-                          }}
-                          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                            ledOn
-                              ? "bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30"
-                              : "bg-white/10 text-slate-200 hover:bg-white/15"
-                          }`}
-                        >
-                          {ledOn ? "On" : "Off"}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Quadrant 1
-                          </label>
-                          <span className="text-sm text-cyan-300">{q1}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0}
-                          max={6}
-                          step={1}
-                          value={q1}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setQ1(next);
-                            await applyCameraSettings({ q1: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                          <span>Off</span>
-                          <span>Max</span>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Quadrant 2
-                          </label>
-                          <span className="text-sm text-cyan-300">{q2}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0}
-                          max={6}
-                          step={1}
-                          value={q2}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setQ2(next);
-                            await applyCameraSettings({ q2: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                          <span>Off</span>
-                          <span>Max</span>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Quadrant 3
-                          </label>
-                          <span className="text-sm text-cyan-300">{q3}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0}
-                          max={6}
-                          step={1}
-                          value={q3}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setQ3(next);
-                            await applyCameraSettings({ q3: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                          <span>Off</span>
-                          <span>Max</span>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-white">
-                            Quadrant 4
-                          </label>
-                          <span className="text-sm text-cyan-300">{q4}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0}
-                          max={6}
-                          step={1}
-                          value={q4}
-                          onChange={async (e) => {
-                            const next = Number(e.target.value);
-                            setQ4(next);
-                            await applyCameraSettings({ q4: next });
-                          }}
-                          className="mt-3 w-full accent-cyan-400"
-                        />
-                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                          <span>Off</span>
-                          <span>Max</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-white">
-                            Auto Exposure
-                          </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            Let the microscope adjust exposure automatically.
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const next = !autoExposure;
-                            setAutoExposure(next);
-                            await applyCameraSettings({ auto_exposure: next });
-                          }}
-                          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                            autoExposure
-                              ? "bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30"
-                              : "bg-white/10 text-slate-200 hover:bg-white/15"
-                          }`}
-                        >
-                          {autoExposure ? "On" : "Off"}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <label className="text-sm font-medium text-white">
-                          Exposure Value
-                        </label>
-                        <span className="text-sm text-cyan-300">
-                          {exposureValue}
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={255}
-                        step={1}
-                        value={exposureValue}
-                        onChange={async (e) => {
-                          const next = Number(e.target.value);
-                          setExposureValue(next);
-                          await applyCameraSettings({ exposure_value: next });
-                        }}
-                        className="mt-3 w-full accent-cyan-400"
-                      />
-                    </div>
-
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:col-span-2">
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            setQ1(6);
-                            setQ2(6);
-                            setQ3(6);
-                            setQ4(6);
-                            await applyCameraSettings({
-                              q1: 6,
-                              q2: 6,
-                              q3: 6,
-                              q4: 6,
-                            });
-                          }}
-                          className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-5 py-2 text-sm font-medium text-cyan-200 transition hover:scale-105 hover:bg-cyan-400/30"
-                        >
-                          All On
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            setQ1(0);
-                            setQ2(0);
-                            setQ3(0);
-                            setQ4(0);
-                            await applyCameraSettings({
-                              q1: 0,
-                              q2: 0,
-                              q3: 0,
-                              q4: 0,
-                            });
-                          }}
-                          className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
-                        >
-                          All Off
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <p className="mt-3 text-center text-sm text-slate-400">
                 Each captured image is automatically added to your selected files
@@ -1225,9 +703,9 @@ export default function UploadPage() {
             </div>
           )}
 
-          {(cameraError || cameraSettingsError) && (
+          {cameraError && (
             <div className="mt-6 w-full rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {cameraError || cameraSettingsError}
+              {cameraError}
             </div>
           )}
 
@@ -1398,6 +876,7 @@ export default function UploadPage() {
               <h3 className="text-lg font-medium text-emerald-200">
                 Analysis Completed Successfully
               </h3>
+
               <p className="mt-1 text-sm text-slate-400">
                 Your sample has been processed and the final sieve results are
                 ready.
@@ -1449,6 +928,7 @@ export default function UploadPage() {
                         </th>
                       </tr>
                     </thead>
+
                     <tbody className="divide-y divide-white/10 bg-black/20">
                       {result.sieve_results && result.sieve_results.length > 0 ? (
                         result.sieve_results.map((row, index) => (
