@@ -34,7 +34,6 @@ type MicroscopeStatus = {
   device_name?: string;
   led_on?: boolean;
   light_level?: number;
-  auto_exposure?: number | boolean | null;
   exposure_value?: number | null;
 };
 
@@ -55,6 +54,11 @@ type ProcAmpControl = {
   range: ProcAmpRange | null;
 };
 
+type PreviewFile = {
+  file: File;
+  previewUrl: string;
+};
+
 const API_BASE = "https://api.molab.ca";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
@@ -68,7 +72,7 @@ const PROCAMP_DEFS = [
 ];
 
 export default function UploadPage() {
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<PreviewFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -145,15 +149,22 @@ export default function UploadPage() {
 
     setFiles((prev) => {
       const existingKeys = new Set(
-        prev.map((file) => `${file.name}-${file.size}-${file.lastModified}`)
+        prev.map(
+          ({ file }) => `${file.name}-${file.size}-${file.lastModified}`
+        )
       );
 
-      const newFiles = selected.filter((file) => {
-        const key = `${file.name}-${file.size}-${file.lastModified}`;
-        return !existingKeys.has(key);
-      });
+      const newItems = selected
+        .filter((file) => {
+          const key = `${file.name}-${file.size}-${file.lastModified}`;
+          return !existingKeys.has(key);
+        })
+        .map((file) => ({
+          file,
+          previewUrl: URL.createObjectURL(file),
+        }));
 
-      return [...prev, ...newFiles];
+      return [...prev, ...newItems];
     });
 
     resetAnalysisState();
@@ -199,12 +210,16 @@ export default function UploadPage() {
   };
 
   const removeFile = (indexToRemove: number) => {
-    setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+    setFiles((prev) => {
+      const removed = prev[indexToRemove];
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return prev.filter((_, index) => index !== indexToRemove);
+    });
     resetAnalysisState();
   };
 
-  const chunkFiles = (inputFiles: File[], chunkSize: number) => {
-    const chunks: File[][] = [];
+  const chunkFiles = (inputFiles: PreviewFile[], chunkSize: number) => {
+    const chunks: PreviewFile[][] = [];
     for (let i = 0; i < inputFiles.length; i += chunkSize) {
       chunks.push(inputFiles.slice(i, i + chunkSize));
     }
@@ -317,10 +332,6 @@ export default function UploadPage() {
 
   const setLightLevel = async (level: number) => {
     await microscopePost("/microscope/light-level", { level });
-  };
-
-  const setAutoExposure = async (on: boolean) => {
-    await microscopePost("/microscope/auto-exposure", { on });
   };
 
   const setExposure = async (value: number) => {
@@ -530,8 +541,7 @@ export default function UploadPage() {
       );
 
       captureCountRef.current += 1;
-      setFiles((prev) => [...prev, file]);
-      resetAnalysisState();
+      addFiles([file]);
       setCameraError(null);
     } catch {
       setCameraError("Failed to capture image.");
@@ -593,9 +603,7 @@ export default function UploadPage() {
           setStatusPollEnabled(false);
           clearInterval(interval);
         }
-      } catch {
-        // ignore temporary polling issues
-      }
+      } catch {}
     }, 1000);
 
     return () => clearInterval(interval);
@@ -606,6 +614,7 @@ export default function UploadPage() {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
+      files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
   }, []);
 
@@ -651,8 +660,8 @@ export default function UploadPage() {
         setProgressText("Uploading images...");
 
         const formData = new FormData();
-        batch.forEach((file) => {
-          formData.append("files", file);
+        batch.forEach((item) => {
+          formData.append("files", item.file);
         });
 
         const uploadRes = await fetch(`${API_BASE}/analyze/upload/${newJobId}`, {
@@ -729,21 +738,11 @@ export default function UploadPage() {
           </div>
 
           <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
-            <Link href="/" className="transition hover:text-cyan-300">
-              Home
-            </Link>
-            <Link href="/technology" className="transition hover:text-cyan-300">
-              Technology
-            </Link>
-            <Link href="/services" className="transition hover:text-cyan-300">
-              Services
-            </Link>
-            <Link href="/about" className="transition hover:text-cyan-300">
-              About
-            </Link>
-            <Link href="/contact" className="transition hover:text-cyan-300">
-              Contact
-            </Link>
+            <Link href="/" className="transition hover:text-cyan-300">Home</Link>
+            <Link href="/technology" className="transition hover:text-cyan-300">Technology</Link>
+            <Link href="/services" className="transition hover:text-cyan-300">Services</Link>
+            <Link href="/about" className="transition hover:text-cyan-300">About</Link>
+            <Link href="/contact" className="transition hover:text-cyan-300">Contact</Link>
           </nav>
 
           <div className="flex justify-end">
@@ -762,8 +761,7 @@ export default function UploadPage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            Upload all grain images you want to analyze in one premium batch
-            workflow.
+            Upload all grain images you want to analyze in one premium batch workflow.
           </p>
         </div>
 
@@ -891,33 +889,18 @@ export default function UploadPage() {
                       )}
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="mt-4">
                       <button
                         type="button"
                         onClick={() => setLed(!(microscopeStatus?.led_on ?? true))}
                         disabled={microscopeBusy}
-                        className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                        className={`w-full rounded-xl border px-4 py-3 text-sm font-medium transition ${
                           microscopeStatus?.led_on
                             ? "border-cyan-300/30 bg-cyan-400/20 text-cyan-200"
                             : "border-white/10 bg-white/5 text-slate-300"
                         }`}
                       >
                         LED {microscopeStatus?.led_on ? "On" : "Off"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setAutoExposure(!(Boolean(microscopeStatus?.auto_exposure)))
-                        }
-                        disabled={microscopeBusy}
-                        className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
-                          Boolean(microscopeStatus?.auto_exposure)
-                            ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-200"
-                            : "border-white/10 bg-white/5 text-slate-300"
-                        }`}
-                      >
-                        Auto Exp {Boolean(microscopeStatus?.auto_exposure) ? "On" : "Off"}
                       </button>
                     </div>
 
@@ -966,7 +949,6 @@ export default function UploadPage() {
                           min={1}
                           max={1000}
                           step={1}
-                          disabled={Boolean(microscopeStatus?.auto_exposure)}
                           value={microscopeStatus?.exposure_value ?? 1}
                           onChange={(e) => {
                             const value = Number(e.target.value);
@@ -983,7 +965,7 @@ export default function UploadPage() {
                           onKeyUp={(e) =>
                             setExposure(Number((e.target as HTMLInputElement).value))
                           }
-                          className="w-full accent-cyan-400 disabled:opacity-40"
+                          className="w-full accent-cyan-400"
                         />
                       </div>
                     </div>
@@ -1098,12 +1080,19 @@ export default function UploadPage() {
               <h2 className="text-lg font-medium text-white">Selected files</h2>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {files.map((file, index) => (
+                {files.map((item, index) => (
                   <div
-                    key={`${file.name}-${index}`}
+                    key={`${item.file.name}-${index}`}
                     className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300"
                   >
-                    <span className="truncate">{file.name}</span>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <img
+                        src={item.previewUrl}
+                        alt={item.file.name}
+                        className="h-14 w-14 rounded-lg border border-white/10 object-cover bg-black"
+                      />
+                      <span className="truncate">{item.file.name}</span>
+                    </div>
 
                     <button
                       type="button"
@@ -1158,9 +1147,7 @@ export default function UploadPage() {
                   </p>
 
                   {progressText && (
-                    <p className="mt-1 text-sm text-slate-400">
-                      {progressText}
-                    </p>
+                    <p className="mt-1 text-sm text-slate-400">{progressText}</p>
                   )}
                 </div>
 
@@ -1210,27 +1197,19 @@ export default function UploadPage() {
 
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Files
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-white">
-                    {files.length}
-                  </p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Files</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{files.length}</p>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Done
-                  </p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Done</p>
                   <p className="mt-1 text-lg font-semibold text-white">
                     {phase === "completed" ? files.length : processedImages}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Status
-                  </p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Status</p>
                   <p className="mt-1 text-lg font-semibold text-white">
                     {phase === "uploading"
                       ? "Uploading"
@@ -1258,33 +1237,26 @@ export default function UploadPage() {
               </h3>
 
               <p className="mt-1 text-sm text-slate-400">
-                Your sample has been processed and the final sieve results are
-                ready.
+                Your sample has been processed and the final sieve results are ready.
               </p>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Files
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Files</p>
                   <p className="mt-2 text-2xl font-semibold text-white">
                     {result.total_files ?? 0}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Total Grains
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Total Grains</p>
                   <p className="mt-2 text-2xl font-semibold text-white">
                     {result.total_grains ?? 0}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Processing Time
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Processing Time</p>
                   <p className="mt-2 text-2xl font-semibold text-white">
                     {result.processing_time_seconds?.toFixed(1) ?? "0.0"} s
                   </p>
@@ -1292,9 +1264,7 @@ export default function UploadPage() {
               </div>
 
               <div className="mt-6">
-                <h4 className="text-base font-medium text-white">
-                  Sieve Result Table
-                </h4>
+                <h4 className="text-base font-medium text-white">Sieve Result Table</h4>
 
                 <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
                   <table className="min-w-full divide-y divide-white/10">
@@ -1313,9 +1283,7 @@ export default function UploadPage() {
                       {result.sieve_results && result.sieve_results.length > 0 ? (
                         result.sieve_results.map((row, index) => (
                           <tr key={`${row.mesh}-${index}`}>
-                            <td className="px-4 py-3 text-sm text-slate-200">
-                              {row.mesh}
-                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-200">{row.mesh}</td>
                             <td className="px-4 py-3 text-sm text-slate-200">
                               {row.percent.toFixed(2)}
                             </td>
@@ -1323,10 +1291,7 @@ export default function UploadPage() {
                         ))
                       ) : (
                         <tr>
-                          <td
-                            colSpan={2}
-                            className="px-4 py-4 text-sm text-slate-400"
-                          >
+                          <td colSpan={2} className="px-4 py-4 text-sm text-slate-400">
                             No sieve results available.
                           </td>
                         </tr>
