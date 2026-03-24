@@ -67,9 +67,14 @@ const SECONDS_PER_IMAGE = 10;
 const PROCAMP_DEFS = [
   { key: "brightness", label: "Brightness", propValueIndex: 0 },
   { key: "contrast", label: "Contrast", propValueIndex: 1 },
+  { key: "hue", label: "Hue", propValueIndex: 2 },
   { key: "saturation", label: "Saturation", propValueIndex: 3 },
   { key: "sharpness", label: "Sharpness", propValueIndex: 4 },
   { key: "gamma", label: "Gamma", propValueIndex: 5 },
+  { key: "whiteBalance6", label: "White Balance 6", propValueIndex: 6 },
+  { key: "whiteBalance7", label: "White Balance 7", propValueIndex: 7 },
+  { key: "backlightComp", label: "Backlight Compensation", propValueIndex: 8 },
+  { key: "gain", label: "Gain", propValueIndex: 9 },
 ];
 
 export default function UploadPage() {
