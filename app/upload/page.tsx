@@ -35,7 +35,6 @@ type MicroscopeStatus = {
   led_on?: boolean;
   light_level?: number;
   exposure_value?: number | null;
-  procamp_values?: Record<string, number>;
 };
 
 type ProcAmpRange = {
@@ -68,14 +67,9 @@ const SECONDS_PER_IMAGE = 10;
 const PROCAMP_DEFS = [
   { key: "brightness", label: "Brightness", propValueIndex: 0 },
   { key: "contrast", label: "Contrast", propValueIndex: 1 },
-  { key: "hue", label: "Hue", propValueIndex: 2 },
   { key: "saturation", label: "Saturation", propValueIndex: 3 },
   { key: "sharpness", label: "Sharpness", propValueIndex: 4 },
   { key: "gamma", label: "Gamma", propValueIndex: 5 },
-  { key: "whiteBalance6", label: "White Balance 6", propValueIndex: 6 },
-  { key: "whiteBalance7", label: "White Balance 7", propValueIndex: 7 },
-  { key: "backlightComp", label: "Backlight Compensation", propValueIndex: 8 },
-  { key: "gain", label: "Gain", propValueIndex: 9 },
 ];
 
 export default function UploadPage() {
@@ -159,7 +153,9 @@ export default function UploadPage() {
 
     setFiles((prev) => {
       const existingKeys = new Set(
-        prev.map(({ file }) => `${file.name}-${file.size}-${file.lastModified}`)
+        prev.map(
+          ({ file }) => `${file.name}-${file.size}-${file.lastModified}`
+        )
       );
 
       const newItems = selected
@@ -222,14 +218,6 @@ export default function UploadPage() {
       const removed = prev[indexToRemove];
       if (removed) URL.revokeObjectURL(removed.previewUrl);
       return prev.filter((_, index) => index !== indexToRemove);
-    });
-    resetAnalysisState();
-  };
-
-  const clearFiles = () => {
-    setFiles((prev) => {
-      prev.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-      return [];
     });
     resetAnalysisState();
   };
@@ -591,15 +579,6 @@ export default function UploadPage() {
   }, []);
 
   useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    };
-  }, [files]);
-
-  useEffect(() => {
     if (!statusPollEnabled || !jobId) return;
 
     const interval = setInterval(async () => {
@@ -659,6 +638,15 @@ export default function UploadPage() {
 
     return () => clearInterval(interval);
   }, [statusPollEnabled, jobId, files.length]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    };
+  }, []);
 
   const startAnalysis = async () => {
     if (files.length === 0) {
@@ -763,7 +751,7 @@ export default function UploadPage() {
         <div className="absolute left-1/2 top-[-120px] h-[340px] w-[340px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
       </div>
 
-      <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pb-8 pt-0 sm:px-6 lg:px-8">
+      <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-8 sm:px-6 lg:px-8">
         <header className="grid h-20 grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex items-center">
             <Link href="/">
@@ -1021,77 +1009,95 @@ export default function UploadPage() {
                           className="w-full accent-cyan-400"
                         />
                       </div>
-
-                      {supportedProcAmpControls.length > 0 && (
-                        <div className="space-y-5 border-t border-white/10 pt-5">
-                          <div className="text-sm font-medium text-white">
-                            Image Properties
-                          </div>
-
-                          {supportedProcAmpControls.map((item) => (
-                            <div key={item.key}>
-                              <div className="mb-2 flex items-center justify-between text-sm">
-                                <span className="text-slate-300">{item.label}</span>
-                                <span className="text-cyan-300">{item.value}</span>
-                              </div>
-                              <input
-                                type="range"
-                                min={item.range?.min ?? 0}
-                                max={item.range?.max ?? 100}
-                                step={item.range?.step && item.range.step > 0 ? item.range.step : 1}
-                                value={item.value}
-                                onChange={(e) => {
-                                  const value = Number(e.target.value);
-                                  setProcAmpControls((prev) =>
-                                    prev.map((ctrl) =>
-                                      ctrl.key === item.key ? { ...ctrl, value } : ctrl
-                                    )
-                                  );
-                                }}
-                                onMouseUp={(e) =>
-                                  setProcAmpValue(
-                                    item.propValueIndex,
-                                    Number((e.target as HTMLInputElement).value)
-                                  )
-                                }
-                                onTouchEnd={(e) =>
-                                  setProcAmpValue(
-                                    item.propValueIndex,
-                                    Number((e.target as HTMLInputElement).value)
-                                  )
-                                }
-                                onKeyUp={(e) =>
-                                  setProcAmpValue(
-                                    item.propValueIndex,
-                                    Number((e.target as HTMLInputElement).value)
-                                  )
-                                }
-                                className="w-full accent-cyan-400"
-                              />
-                              {item.range && (
-                                <div className="mt-1 flex justify-between text-[11px] text-slate-500">
-                                  <span>Min: {item.range.min}</span>
-                                  <span>Default: {item.range.default}</span>
-                                  <span>Max: {item.range.max}</span>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {cameraError && (
-                        <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                          {cameraError}
-                        </div>
-                      )}
-
-                      {!microscopeStatus?.available && cameraOpen && (
-                        <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                          Dino-Lite SDK is not currently available on this endpoint.
-                        </div>
-                      )}
                     </div>
+
+                    {microscopeStatus && (
+                      <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-400">
+                        <div className="flex items-center justify-between">
+                          <span>SDK device</span>
+                          <span className="text-slate-200">
+                            {microscopeStatus.device_name || "Unknown"}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span>Devices found</span>
+                          <span className="text-slate-200">
+                            {microscopeStatus.device_count ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {supportedProcAmpControls.length > 0 && (
+                      <div className="mt-5 border-t border-white/10 pt-5">
+                        <h4 className="text-sm font-medium text-white">
+                          Image Properties
+                        </h4>
+
+                        <div className="mt-4 space-y-5">
+                          {supportedProcAmpControls.map((control) => {
+                            const min = control.range?.min ?? 0;
+                            const max = control.range?.max ?? 100;
+                            const step =
+                              control.range?.step && control.range.step > 0
+                                ? control.range.step
+                                : 1;
+
+                            return (
+                              <div key={control.key}>
+                                <div className="mb-2 flex items-center justify-between text-sm">
+                                  <span className="text-slate-300">{control.label}</span>
+                                  <span className="text-cyan-300">{control.value}</span>
+                                </div>
+
+                                <input
+                                  type="range"
+                                  min={min}
+                                  max={max}
+                                  step={step}
+                                  value={control.value}
+                                  onChange={(e) => {
+                                    const value = Number(e.target.value);
+                                    setProcAmpControls((prev) =>
+                                      prev.map((item) =>
+                                        item.key === control.key
+                                          ? { ...item, value }
+                                          : item
+                                      )
+                                    );
+                                  }}
+                                  onMouseUp={(e) =>
+                                    setProcAmpValue(
+                                      control.propValueIndex,
+                                      Number((e.target as HTMLInputElement).value)
+                                    )
+                                  }
+                                  onTouchEnd={(e) =>
+                                    setProcAmpValue(
+                                      control.propValueIndex,
+                                      Number((e.target as HTMLInputElement).value)
+                                    )
+                                  }
+                                  onKeyUp={(e) =>
+                                    setProcAmpValue(
+                                      control.propValueIndex,
+                                      Number((e.target as HTMLInputElement).value)
+                                    )
+                                  }
+                                  className="w-full accent-cyan-400"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {supportedProcAmpControls.length === 0 && (
+                      <div className="mt-5 rounded-xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm text-amber-200">
+                        This camera did not expose extra image-property sliders through the SDK.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1100,84 +1106,87 @@ export default function UploadPage() {
             </div>
           )}
 
+          {cameraError && (
+            <div className="mt-6 w-full rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {cameraError}
+            </div>
+          )}
+
           {files.length > 0 && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-medium text-white">Selected Images</h2>
-                  <p className="mt-1 text-sm text-slate-400">{totalFilesText}</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Estimated analysis time: ~{estimatedSeconds} seconds
-                  </p>
-                </div>
+            <div
+              className={`mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 transition ${
+                isLoading ? "pointer-events-none opacity-70 blur-[1px]" : ""
+              }`}
+            >
+              <h2 className="text-lg font-medium text-white">Selected files</h2>
 
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={clearFiles}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
-                  >
-                    Clear All
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={startAnalysis}
-                    disabled={isLoading || files.length === 0}
-                    className="rounded-full bg-cyan-400 px-6 py-2.5 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isLoading ? "Analyzing..." : "Start Analysis"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {files.map((item, index) => (
                   <div
-                    key={`${item.file.name}-${item.file.lastModified}-${index}`}
-                    className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]"
+                    key={`${item.file.name}-${index}`}
+                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300"
                   >
-                    <div className="relative aspect-[4/3] overflow-hidden bg-black">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <div className="flex min-w-0 items-center gap-3">
                       <img
                         src={item.previewUrl}
                         alt={item.file.name}
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                        className="h-14 w-14 rounded-lg border border-white/10 object-cover bg-black"
                       />
+                      <span className="truncate">{item.file.name}</span>
                     </div>
 
-                    <div className="flex items-start justify-between gap-3 p-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-white">
-                          {item.file.name}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          {(item.file.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => removeFile(index)}
-                        className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-white/10"
-                      >
-                        ×
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(index)}
+                      className="ml-4 flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-red-300 transition hover:bg-red-500/40"
+                    >
+                      ×
+                    </button>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-6 flex flex-col items-center">
+                <button
+                  type="button"
+                  onClick={startAnalysis}
+                  disabled={isLoading}
+                  className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_30px_rgba(34,211,238,0.22)] transition duration-300 hover:scale-105 hover:bg-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
+                >
+                  {isLoading ? "Processing Sample..." : "Start Analysis"}
+                </button>
+
+                {showBottomSummary && (
+                  <div className="mt-4 text-center">
+                    <p className="text-sm text-slate-300">{totalFilesText}</p>
+                    <p className="mt-1 text-sm text-cyan-300">
+                      Estimated time: {estimatedSeconds} second
+                      {estimatedSeconds !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {isLoading && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+          {(isLoading || progressText || phase === "completed") && (
+            <div className="mt-6 overflow-hidden rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-blue-500/10 p-5 shadow-[0_0_40px_rgba(34,211,238,0.08)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm uppercase tracking-wide text-cyan-300">
-                    Analysis Progress
+                  <p
+                    className={`text-xs uppercase tracking-[0.25em] ${
+                      phase === "completed"
+                        ? "text-emerald-300"
+                        : "animate-pulse text-cyan-300"
+                    }`}
+                  >
+                    {phase === "completed" ? "Completed" : "Processing"}
                   </p>
-                  <p className="mt-2 text-lg font-medium text-white">{currentStep}</p>
+
+                  <p className="mt-2 text-lg font-medium text-white">
+                    {currentStep}
+                  </p>
+
                   {progressText && (
                     <p className="mt-1 text-sm text-slate-400">{progressText}</p>
                   )}
@@ -1257,80 +1266,96 @@ export default function UploadPage() {
           )}
 
           {error && (
-            <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-200">
+            <div className="mt-6 w-full rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
               {error}
             </div>
           )}
 
-          {result && (
-            <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-white">Analysis Completed</h2>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-400">Files</p>
-                      <p className="mt-1 text-lg font-semibold text-white">
-                        {result.total_files ?? files.length}
-                      </p>
-                    </div>
+          {result && phase === "completed" && (
+            <div className="mt-6 w-full rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 via-slate-900/40 to-cyan-500/10 p-5 shadow-[0_0_40px_rgba(16,185,129,0.08)]">
+              <h3 className="text-lg font-medium text-emerald-200">
+                Analysis Completed Successfully
+              </h3>
 
-                    <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-400">Total Grains</p>
-                      <p className="mt-1 text-lg font-semibold text-white">
-                        {result.total_grains ?? "-"}
-                      </p>
-                    </div>
+              <p className="mt-1 text-sm text-slate-400">
+                Your sample has been processed and the final sieve results are ready.
+              </p>
 
-                    <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-400">Time</p>
-                      <p className="mt-1 text-lg font-semibold text-white">
-                        {result.processing_time_seconds != null
-                          ? `${result.processing_time_seconds.toFixed(1)} s`
-                          : "-"}
-                      </p>
-                    </div>
-                  </div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Files</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {result.total_files ?? 0}
+                  </p>
                 </div>
 
-                {result.zip_url && (
-                  <a
-                    href={result.zip_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
-                  >
-                    Download ZIP
-                  </a>
-                )}
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Total Grains</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {result.total_grains ?? 0}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Processing Time</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {result.processing_time_seconds?.toFixed(1) ?? "0.0"} s
+                  </p>
+                </div>
               </div>
 
-              {Array.isArray(result.sieve_results) && result.sieve_results.length > 0 && (
-                <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
-                  <table className="min-w-full divide-y divide-white/10 text-sm">
+              <div className="mt-6">
+                <h4 className="text-base font-medium text-white">Sieve Result Table</h4>
+
+                <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
+                  <table className="min-w-full divide-y divide-white/10">
                     <thead className="bg-white/[0.04]">
                       <tr>
-                        <th className="px-4 py-3 text-left font-medium text-slate-300">Mesh</th>
-                        <th className="px-4 py-3 text-left font-medium text-slate-300">Percent</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">
+                          Mesh
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">
+                          Percent (%)
+                        </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {result.sieve_results.map((row, index) => (
-                        <tr key={`${row.mesh}-${index}`} className="bg-black/10">
-                          <td className="px-4 py-3 text-white">{row.mesh}</td>
-                          <td className="px-4 py-3 text-white">{row.percent}%</td>
+
+                    <tbody className="divide-y divide-white/10 bg-black/20">
+                      {result.sieve_results && result.sieve_results.length > 0 ? (
+                        result.sieve_results.map((row, index) => (
+                          <tr key={`${row.mesh}-${index}`}>
+                            <td className="px-4 py-3 text-sm text-slate-200">{row.mesh}</td>
+                            <td className="px-4 py-3 text-sm text-slate-200">
+                              {row.percent.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="px-4 py-4 text-sm text-slate-400">
+                            No sieve results available.
+                          </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
 
-          {showBottomSummary && (
-            <div className="mt-6 text-center text-sm text-slate-500">
-              Ready to analyze {files.length} image{files.length === 1 ? "" : "s"}.
+              {result.zip_url && (
+                <div className="mt-6 flex justify-center">
+                  <a
+                    href={
+                      result.zip_url.startsWith("http")
+                        ? result.zip_url
+                        : `${CLOUD_API}${result.zip_url}`
+                    }
+                    className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
+                  >
+                    Download Results ZIP
+                  </a>
+                </div>
+              )}
             </div>
           )}
         </div>
