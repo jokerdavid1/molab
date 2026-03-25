@@ -60,7 +60,7 @@ type PreviewFile = {
 };
 
 const CLOUD_API = "https://api.molab.ca";
-const LOCAL_API = "http://127.0.0.1:8010";
+const LOCAL_API = "http://127.0.0.1:8000";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
 
