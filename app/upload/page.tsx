@@ -84,6 +84,8 @@ const CLOUD_API = "https://api.molab.ca";
 const LOCAL_API = "http://127.0.0.1:8010";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
+const MANUAL_STEP_MM = 0.2;
+const MANUAL_REPEAT_MS = 90;
 
 const PROCAMP_DEFS = [
   { key: "brightness", label: "Brightness", propValueIndex: 0 },
@@ -135,6 +137,7 @@ export default function UploadPage() {
   const [scanSliderLength, setScanSliderLength] = useState(50);
   const [scanSettleTime, setScanSettleTime] = useState(2);
   const [manualSpeed, setManualSpeed] = useState(200);
+  const [autoSpeed, setAutoSpeed] = useState(600);
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -150,6 +153,9 @@ export default function UploadPage() {
     right: false,
   });
   const autoAbortRef = useRef(false);
+  const manualJogTimerRef = useRef<number | null>(null);
+  const activeManualDirectionRef = useRef<"left" | "right" | null>(null);
+  const manualRequestBusyRef = useRef(false);
 
   const estimatedSeconds = useMemo(
     () => files.length * SECONDS_PER_IMAGE,
@@ -677,7 +683,109 @@ export default function UploadPage() {
       if (!res.ok) return;
       const data = (await res.json()) as ScanStatus;
       setScanStatus(data);
-    } catch {}
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const clearManualLoop = () => {
+    activeManualDirectionRef.current = null;
+
+    if (manualJogTimerRef.current) {
+      window.clearInterval(manualJogTimerRef.current);
+      manualJogTimerRef.current = null;
+    }
+  };
+
+  const sendManualStep = async (direction: "left" | "right") => {
+    if (manualRequestBusyRef.current) return;
+
+    manualRequestBusyRef.current = true;
+
+    try {
+      const res = await fetch(`${LOCAL_API}/scan/manual/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          direction,
+          speed: manualSpeed,
+          step_mm: MANUAL_STEP_MM,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || "Failed to move slider.");
+      }
+
+      await fetchScanStatus();
+
+      const statusText = String(data?.status || "");
+      if (
+        statusText.includes("blocked") ||
+        statusText.includes("switch_hit") ||
+        statusText === "manual_edge_reached"
+      ) {
+        clearManualLoop();
+      }
+    } finally {
+      manualRequestBusyRef.current = false;
+    }
+  };
+
+  const startManualMove = async (direction: "left" | "right") => {
+    if (autoRunning) return;
+    if (scanStatus?.running && scanStatus?.mode === "auto") return;
+
+    if (activeManualDirectionRef.current === direction && manualJogTimerRef.current) {
+      return;
+    }
+
+    clearManualLoop();
+    setScanError(null);
+    activeManualDirectionRef.current = direction;
+
+    try {
+      await sendManualStep(direction);
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : "Failed to move slider.");
+      clearManualLoop();
+      return;
+    }
+
+    manualJogTimerRef.current = window.setInterval(async () => {
+      if (activeManualDirectionRef.current !== direction) return;
+
+      try {
+        await sendManualStep(direction);
+      } catch (err) {
+        setScanError(err instanceof Error ? err.message : "Failed to move slider.");
+        clearManualLoop();
+        try {
+          await fetch(`${LOCAL_API}/scan/manual/stop`, { method: "POST" });
+          await fetchScanStatus();
+        } catch {}
+      }
+    }, MANUAL_REPEAT_MS);
+  };
+
+  const stopManualMove = async () => {
+    clearManualLoop();
+
+    try {
+      const res = await fetch(`${LOCAL_API}/scan/manual/stop`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || "Failed to stop slider.");
+      }
+
+      await fetchScanStatus();
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : "Failed to stop slider.");
+    }
   };
 
   const startAutomaticScan = async () => {
@@ -685,6 +793,7 @@ export default function UploadPage() {
     setScanError(null);
     setAutoRunning(true);
     autoAbortRef.current = false;
+    clearManualLoop();
 
     try {
       if (!cameraOpen) {
@@ -698,11 +807,11 @@ export default function UploadPage() {
         body: JSON.stringify({
           total_images: scanNumImages,
           slider_length_mm: scanSliderLength,
-          speed: manualSpeed,
+          speed: autoSpeed,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data?.detail || data?.error || "Failed to start automatic scan.");
       }
@@ -716,22 +825,33 @@ export default function UploadPage() {
 
         let ready = false;
 
-        for (let tries = 0; tries < 300; tries++) {
+        for (let tries = 0; tries < 400; tries++) {
           const statusRes = await fetch(`${LOCAL_API}/scan/status`, {
             method: "GET",
             cache: "no-store",
           });
 
-          if (!statusRes.ok) {
+          const statusData = statusRes.ok
+            ? ((await statusRes.json()) as ScanStatus)
+            : null;
+
+          if (!statusData) {
             await wait(150);
             continue;
           }
 
-          const statusData = (await statusRes.json()) as ScanStatus;
           setScanStatus(statusData);
 
           if (statusData.error) {
             throw new Error(statusData.error);
+          }
+
+          if (statusData.status === "failed") {
+            throw new Error(statusData.error || "Automatic scan failed.");
+          }
+
+          if (statusData.status === "stopped") {
+            throw new Error("Automatic scan was stopped.");
           }
 
           if (
@@ -743,12 +863,7 @@ export default function UploadPage() {
             break;
           }
 
-          if (!statusData.running && statusData.status === "completed") {
-            ready = false;
-            break;
-          }
-
-          await wait(120);
+          await wait(100);
         }
 
         if (!ready) {
@@ -767,7 +882,7 @@ export default function UploadPage() {
           }),
         });
 
-        const capturedData = await capturedRes.json();
+        const capturedData = await capturedRes.json().catch(() => ({}));
 
         if (!capturedRes.ok) {
           throw new Error(
@@ -787,7 +902,7 @@ export default function UploadPage() {
             : prev
         );
 
-        await wait(150);
+        await wait(100);
       }
 
       await fetchScanStatus();
@@ -803,30 +918,6 @@ export default function UploadPage() {
     try {
       autoAbortRef.current = true;
       await fetch(`${LOCAL_API}/scan/stop`, { method: "POST" });
-      await fetchScanStatus();
-    } catch {}
-  };
-
-  const startManualMove = async (direction: "left" | "right") => {
-    try {
-      setScanError(null);
-      await fetch(`${LOCAL_API}/scan/manual/move`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          direction,
-          speed: manualSpeed,
-        }),
-      });
-      await fetchScanStatus();
-    } catch (err) {
-      setScanError(err instanceof Error ? err.message : "Failed to move slider.");
-    }
-  };
-
-  const stopManualMove = async () => {
-    try {
-      await fetch(`${LOCAL_API}/scan/manual/stop`, { method: "POST" });
       await fetchScanStatus();
     } catch {}
   };
@@ -922,48 +1013,82 @@ export default function UploadPage() {
   }, [statusPollEnabled, jobId, files.length]);
 
   useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName?.toLowerCase();
+      return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+    };
+
     const handleKeyDown = async (e: KeyboardEvent) => {
       if (scanMode !== "manual") return;
-      if (e.repeat) return;
-      if (e.key === "ArrowLeft" && !pressedKeysRef.current.left) {
-        pressedKeysRef.current.left = true;
-        await startManualMove("left");
+      if (autoRunning) return;
+      if (isTypingTarget(e.target)) return;
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (!pressedKeysRef.current.left) {
+          pressedKeysRef.current.left = true;
+          await startManualMove("left");
+        }
       }
-      if (e.key === "ArrowRight" && !pressedKeysRef.current.right) {
-        pressedKeysRef.current.right = true;
-        await startManualMove("right");
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (!pressedKeysRef.current.right) {
+          pressedKeysRef.current.right = true;
+          await startManualMove("right");
+        }
       }
     };
 
     const handleKeyUp = async (e: KeyboardEvent) => {
       if (scanMode !== "manual") return;
+      if (isTypingTarget(e.target)) return;
+
       if (e.key === "ArrowLeft") {
+        e.preventDefault();
         pressedKeysRef.current.left = false;
-        await stopManualMove();
+        if (activeManualDirectionRef.current === "left") {
+          await stopManualMove();
+        }
       }
+
       if (e.key === "ArrowRight") {
+        e.preventDefault();
         pressedKeysRef.current.right = false;
-        await stopManualMove();
+        if (activeManualDirectionRef.current === "right") {
+          await stopManualMove();
+        }
       }
+    };
+
+    const handleWindowBlur = async () => {
+      pressedKeysRef.current.left = false;
+      pressedKeysRef.current.right = false;
+      await stopManualMove();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleWindowBlur);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleWindowBlur);
     };
-  }, [scanMode, manualSpeed]);
+  }, [scanMode, manualSpeed, autoRunning]);
 
   useEffect(() => {
     return () => {
+      clearManualLoop();
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
       files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
-  }, []);
+  }, [files]);
 
   const startAnalysis = async () => {
     if (files.length === 0) {
@@ -1466,7 +1591,7 @@ export default function UploadPage() {
             </div>
 
             {scanMode === "auto" && (
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="mt-6 grid gap-4 md:grid-cols-4">
                 <div>
                   <label className="mb-2 block text-sm text-slate-300">Number of Images</label>
                   <input
@@ -1501,7 +1626,19 @@ export default function UploadPage() {
                   />
                 </div>
 
-                <div className="md:col-span-3 flex flex-col gap-3 sm:flex-row">
+                <div>
+                  <label className="mb-2 block text-sm text-slate-300">Auto Speed</label>
+                  <input
+                    type="number"
+                    min={50}
+                    max={3000}
+                    value={autoSpeed}
+                    onChange={(e) => setAutoSpeed(Number(e.target.value))}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </div>
+
+                <div className="md:col-span-4 flex flex-col gap-3 sm:flex-row">
                   <button
                     type="button"
                     onClick={startAutomaticScan}
@@ -1520,7 +1657,7 @@ export default function UploadPage() {
                   </button>
                 </div>
 
-                <div className="md:col-span-3 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
+                <div className="md:col-span-4 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
                   Calculated step:{" "}
                   <span className="font-semibold text-cyan-300">
                     {scanNumImages > 1
@@ -1550,14 +1687,29 @@ export default function UploadPage() {
                   />
                 </div>
 
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
+                  Manual step size:{" "}
+                  <span className="font-semibold text-cyan-300">{MANUAL_STEP_MM} mm</span>
+                </div>
+
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onMouseDown={() => startManualMove("left")}
                     onMouseUp={stopManualMove}
                     onMouseLeave={stopManualMove}
-                    onTouchStart={() => startManualMove("left")}
-                    onTouchEnd={stopManualMove}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      startManualMove("left");
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      stopManualMove();
+                    }}
+                    onTouchCancel={(e) => {
+                      e.preventDefault();
+                      stopManualMove();
+                    }}
                     className="rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white transition hover:scale-[1.02]"
                   >
                     ⬅️ Move Left
@@ -1568,8 +1720,18 @@ export default function UploadPage() {
                     onMouseDown={() => startManualMove("right")}
                     onMouseUp={stopManualMove}
                     onMouseLeave={stopManualMove}
-                    onTouchStart={() => startManualMove("right")}
-                    onTouchEnd={stopManualMove}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      startManualMove("right");
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      stopManualMove();
+                    }}
+                    onTouchCancel={(e) => {
+                      e.preventDefault();
+                      stopManualMove();
+                    }}
                     className="rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white transition hover:scale-[1.02]"
                   >
                     ➡️ Move Right
@@ -1585,7 +1747,7 @@ export default function UploadPage() {
                 </button>
 
                 <p className="text-sm text-slate-400">
-                  Keyboard control: use the left and right arrow keys.
+                  Keyboard control: hold the left and right arrow keys for small repeated steps.
                 </p>
               </div>
             )}
