@@ -35,6 +35,7 @@ type MicroscopeStatus = {
   led_on?: boolean;
   light_level?: number;
   exposure_value?: number | null;
+  last_error?: string | null;
 };
 
 type ProcAmpRange = {
@@ -94,9 +95,7 @@ export default function UploadPage() {
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [phase, setPhase] = useState<
-    "idle" | "uploading" | "processing" | "completed" | "failed"
-  >("idle");
+  const [phase, setPhase] = useState<"idle" | "uploading" | "processing" | "completed" | "failed">("idle");
   const [currentStep, setCurrentStep] = useState("Idle");
   const [progressText, setProgressText] = useState<string | null>(null);
   const [uploadedBatches, setUploadedBatches] = useState(0);
@@ -136,10 +135,7 @@ export default function UploadPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const captureCountRef = useRef(1);
 
-  const estimatedSeconds = useMemo(
-    () => files.length * SECONDS_PER_IMAGE,
-    [files.length]
-  );
+  const estimatedSeconds = useMemo(() => files.length * SECONDS_PER_IMAGE, [files.length]);
 
   const totalFilesText = useMemo(() => {
     if (files.length === 0) return "No files selected yet.";
@@ -149,10 +145,8 @@ export default function UploadPage() {
 
   const totalImages = files.length;
   const totalSteps = totalBatches + totalImages;
-  const completedSteps =
-    phase === "completed" ? totalSteps : uploadedBatches + processedImages;
-  const computedProgressPercent =
-    totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+  const completedSteps = phase === "completed" ? totalSteps : uploadedBatches + processedImages;
+  const computedProgressPercent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
   const resetAnalysisState = () => {
     setError(null);
@@ -168,17 +162,11 @@ export default function UploadPage() {
   };
 
   const addFiles = (incomingFiles: File[]) => {
-    const selected = incomingFiles.filter((file) =>
-      /\.(png|jpe?g)$/i.test(file.name)
-    );
-
+    const selected = incomingFiles.filter((file) => /\.(png|jpe?g)$/i.test(file.name));
     if (selected.length === 0) return;
 
     setFiles((prev) => {
-      const existingKeys = new Set(
-        prev.map(({ file }) => `${file.name}-${file.size}-${file.lastModified}`)
-      );
-
+      const existingKeys = new Set(prev.map(({ file }) => `${file.name}-${file.size}-${file.lastModified}`));
       const newItems = selected
         .filter((file) => {
           const key = `${file.name}-${file.size}-${file.lastModified}`;
@@ -188,7 +176,6 @@ export default function UploadPage() {
           file,
           previewUrl: URL.createObjectURL(file),
         }));
-
       return [...prev, ...newItems];
     });
 
@@ -229,7 +216,6 @@ export default function UploadPage() {
     setIsDragging(false);
 
     if (isLoading) return;
-
     const droppedFiles = Array.from(e.dataTransfer.files || []);
     addFiles(droppedFiles);
   };
@@ -291,14 +277,12 @@ export default function UploadPage() {
     const results = await Promise.all(
       PROCAMP_DEFS.map(async (item) => {
         try {
-          const rangeRes = await fetch(
-            `${api}/microscope/video-procamp-range/${item.propValueIndex}`,
-            { cache: "no-store" }
-          );
-          const valueRes = await fetch(
-            `${api}/microscope/video-procamp/${item.propValueIndex}`,
-            { cache: "no-store" }
-          );
+          const rangeRes = await fetch(`${api}/microscope/video-procamp-range/${item.propValueIndex}`, {
+            cache: "no-store",
+          });
+          const valueRes = await fetch(`${api}/microscope/video-procamp/${item.propValueIndex}`, {
+            cache: "no-store",
+          });
 
           if (!rangeRes.ok || !valueRes.ok) {
             return {
@@ -364,9 +348,7 @@ export default function UploadPage() {
 
       return data;
     } catch (err) {
-      setCameraError(
-        err instanceof Error ? err.message : "Microscope update failed."
-      );
+      setCameraError(err instanceof Error ? err.message : "Microscope update failed.");
       throw err;
     } finally {
       setMicroscopeBusy(false);
@@ -427,8 +409,7 @@ export default function UploadPage() {
       setCameraDevices(videos);
 
       if (!selectedCameraId && videos.length > 0) {
-        const microscope =
-          videos.find((d) => d.label.toLowerCase().includes("micro")) || videos[0];
+        const microscope = videos.find((d) => d.label.toLowerCase().includes("micro")) || videos[0];
         setSelectedCameraId(microscope.deviceId);
       }
     } catch {
@@ -510,9 +491,7 @@ export default function UploadPage() {
       setTimeout(async () => {
         const preferredId =
           selectedCameraId ||
-          (await navigator.mediaDevices.enumerateDevices()).filter(
-            (d) => d.kind === "videoinput"
-          )[0]?.deviceId ||
+          (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput")[0]?.deviceId ||
           "";
 
         if (preferredId) {
@@ -522,15 +501,11 @@ export default function UploadPage() {
         }
       }, 100);
     } catch {
-      setCameraError(
-        "Could not access camera permission. Please allow camera access in Chrome."
-      );
+      setCameraError("Could not access camera permission. Please allow camera access in Chrome.");
     }
   };
 
-  const handleCameraChange = async (
-    e: React.ChangeEvent<HTMLSelectElement>
-  ) => {
+  const handleCameraChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newId = e.target.value;
     setSelectedCameraId(newId);
 
@@ -577,17 +552,12 @@ export default function UploadPage() {
       }
 
       const now = Date.now();
-      const file = new File(
-        [blob],
-        `microscope_capture_${now}_${captureCountRef.current}.jpg`,
-        {
-          type: "image/jpeg",
-          lastModified: now,
-        }
-      );
+      const file = new File([blob], `microscope_capture_${now}_${captureCountRef.current}.jpg`, {
+        type: "image/jpeg",
+        lastModified: now,
+      });
 
       captureCountRef.current += 1;
-
       addFiles([file]);
       setCameraError(null);
     } catch {
@@ -720,12 +690,7 @@ export default function UploadPage() {
           setPhase("processing");
           setProcessedImages(done);
           setCurrentStep("Processing images...");
-
-          if (done < total) {
-            setProgressText(`Image ${done + 1} of ${total}`);
-          } else {
-            setProgressText(`Image ${total} of ${total}`);
-          }
+          setProgressText(done < total ? `Image ${done + 1} of ${total}` : `Image ${total} of ${total}`);
         }
 
         if (data.status === "completed") {
@@ -838,7 +803,6 @@ export default function UploadPage() {
 
       for (let i = 0; i < fileChunks.length; i++) {
         const batch = fileChunks[i];
-
         setPhase("uploading");
         setCurrentStep("Uploading images...");
         setProgressText("Uploading images...");
@@ -856,9 +820,7 @@ export default function UploadPage() {
         const uploadData = await uploadRes.json();
 
         if (!uploadRes.ok) {
-          throw new Error(
-            uploadData?.error || uploadData?.detail || "Batch upload failed."
-          );
+          throw new Error(uploadData?.error || uploadData?.detail || "Batch upload failed.");
         }
 
         setUploadedBatches(i + 1);
@@ -871,9 +833,7 @@ export default function UploadPage() {
       const completeData = await completeRes.json();
 
       if (!completeRes.ok) {
-        throw new Error(
-          completeData?.error || completeData?.detail || "Failed to start analysis."
-        );
+        throw new Error(completeData?.error || completeData?.detail || "Failed to start analysis.");
       }
 
       setPhase("processing");
@@ -881,11 +841,7 @@ export default function UploadPage() {
       setProgressText(`Image 1 of ${files.length}`);
       setStatusPollEnabled(true);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong during analysis."
-      );
+      setError(err instanceof Error ? err.message : "Something went wrong during analysis.");
       setPhase("failed");
       setCurrentStep("Failed");
       setProgressText(null);
@@ -962,13 +918,8 @@ export default function UploadPage() {
             }`}
           >
             <div className="mx-auto max-w-2xl">
-              <p className="text-lg font-medium text-white">
-                Drag and drop your images here
-              </p>
-
-              <p className="mt-2 text-sm text-slate-400">
-                Or click below to browse files.
-              </p>
+              <p className="text-lg font-medium text-white">Drag and drop your images here</p>
+              <p className="mt-2 text-sm text-slate-400">Or click below to browse files.</p>
 
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <label className="inline-flex cursor-pointer rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105">
@@ -992,23 +943,17 @@ export default function UploadPage() {
                 </button>
               </div>
 
-              <div className="mt-4 text-sm text-slate-500">
-                Supported formats: PNG, JPG, JPEG
-              </div>
+              <div className="mt-4 text-sm text-slate-500">Supported formats: PNG, JPG, JPEG</div>
             </div>
           </div>
 
           {(cameraDevices.length > 0 || cameraOpen) && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-              <h2 className="text-lg font-medium text-white">
-                Microscope / Camera Capture
-              </h2>
+              <h2 className="text-lg font-medium text-white">Microscope / Camera Capture</h2>
 
               {cameraDevices.length > 0 && (
                 <div className="mt-4">
-                  <label className="mb-2 block text-sm text-slate-300">
-                    Camera source
-                  </label>
+                  <label className="mb-2 block text-sm text-slate-300">Camera source</label>
                   <select
                     value={selectedCameraId}
                     onChange={handleCameraChange}
@@ -1065,9 +1010,7 @@ export default function UploadPage() {
                 <div className="min-w-0">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-base font-medium text-white">
-                        Live Controls
-                      </h3>
+                      <h3 className="text-base font-medium text-white">Live Controls</h3>
                       <div className="flex items-center gap-3">
                         <span
                           className={`rounded-full px-2.5 py-1 text-[11px] uppercase tracking-wide ${
@@ -1078,9 +1021,7 @@ export default function UploadPage() {
                         >
                           {microscopeApiLabel === "local" ? "Local" : "Cloud"}
                         </span>
-                        {microscopeBusy && (
-                          <span className="text-xs text-cyan-300">Updating...</span>
-                        )}
+                        {microscopeBusy && <span className="text-xs text-cyan-300">Updating...</span>}
                       </div>
                     </div>
 
@@ -1103,9 +1044,7 @@ export default function UploadPage() {
                       <div>
                         <div className="mb-2 flex items-center justify-between text-sm">
                           <span className="text-slate-300">Light level</span>
-                          <span className="text-cyan-300">
-                            {microscopeStatus?.light_level ?? 6}
-                          </span>
+                          <span className="text-cyan-300">{microscopeStatus?.light_level ?? 6}</span>
                         </div>
                         <input
                           type="range"
@@ -1119,15 +1058,9 @@ export default function UploadPage() {
                               prev ? { ...prev, light_level: value, led_on: true } : prev
                             );
                           }}
-                          onMouseUp={(e) =>
-                            setLightLevel(Number((e.target as HTMLInputElement).value))
-                          }
-                          onTouchEnd={(e) =>
-                            setLightLevel(Number((e.target as HTMLInputElement).value))
-                          }
-                          onKeyUp={(e) =>
-                            setLightLevel(Number((e.target as HTMLInputElement).value))
-                          }
+                          onMouseUp={(e) => setLightLevel(Number((e.target as HTMLInputElement).value))}
+                          onTouchEnd={(e) => setLightLevel(Number((e.target as HTMLInputElement).value))}
+                          onKeyUp={(e) => setLightLevel(Number((e.target as HTMLInputElement).value))}
                           className="w-full accent-cyan-400"
                         />
                       </div>
@@ -1135,9 +1068,7 @@ export default function UploadPage() {
                       <div>
                         <div className="mb-2 flex items-center justify-between text-sm">
                           <span className="text-slate-300">Exposure</span>
-                          <span className="text-cyan-300">
-                            {microscopeStatus?.exposure_value ?? 1}
-                          </span>
+                          <span className="text-cyan-300">{microscopeStatus?.exposure_value ?? 1}</span>
                         </div>
                         <input
                           type="range"
@@ -1151,15 +1082,9 @@ export default function UploadPage() {
                               prev ? { ...prev, exposure_value: value } : prev
                             );
                           }}
-                          onMouseUp={(e) =>
-                            setExposure(Number((e.target as HTMLInputElement).value))
-                          }
-                          onTouchEnd={(e) =>
-                            setExposure(Number((e.target as HTMLInputElement).value))
-                          }
-                          onKeyUp={(e) =>
-                            setExposure(Number((e.target as HTMLInputElement).value))
-                          }
+                          onMouseUp={(e) => setExposure(Number((e.target as HTMLInputElement).value))}
+                          onTouchEnd={(e) => setExposure(Number((e.target as HTMLInputElement).value))}
+                          onKeyUp={(e) => setExposure(Number((e.target as HTMLInputElement).value))}
                           className="w-full accent-cyan-400"
                         />
                       </div>
@@ -1169,33 +1094,28 @@ export default function UploadPage() {
                       <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-400">
                         <div className="flex items-center justify-between">
                           <span>SDK device</span>
-                          <span className="text-slate-200">
-                            {microscopeStatus.device_name || "Unknown"}
-                          </span>
+                          <span className="text-slate-200">{microscopeStatus.device_name || "Unknown"}</span>
                         </div>
                         <div className="mt-2 flex items-center justify-between">
                           <span>Devices found</span>
-                          <span className="text-slate-200">
-                            {microscopeStatus.device_count ?? 0}
-                          </span>
+                          <span className="text-slate-200">{microscopeStatus.device_count ?? 0}</span>
                         </div>
+                        {microscopeStatus.last_error && (
+                          <div className="mt-2 text-red-300">{microscopeStatus.last_error}</div>
+                        )}
                       </div>
                     )}
 
                     {supportedProcAmpControls.length > 0 && (
                       <div className="mt-5 border-t border-white/10 pt-5">
-                        <h4 className="text-sm font-medium text-white">
-                          Image Properties
-                        </h4>
+                        <h4 className="text-sm font-medium text-white">Image Properties</h4>
 
                         <div className="mt-4 space-y-5">
                           {supportedProcAmpControls.map((control) => {
                             const min = control.range?.min ?? 0;
                             const max = control.range?.max ?? 100;
                             const step =
-                              control.range?.step && control.range.step > 0
-                                ? control.range.step
-                                : 1;
+                              control.range?.step && control.range.step > 0 ? control.range.step : 1;
 
                             return (
                               <div key={control.key}>
@@ -1214,9 +1134,7 @@ export default function UploadPage() {
                                     const value = Number(e.target.value);
                                     setProcAmpControls((prev) =>
                                       prev.map((item) =>
-                                        item.key === control.key
-                                          ? { ...item, value }
-                                          : item
+                                        item.key === control.key ? { ...item, value } : item
                                       )
                                     );
                                   }}
@@ -1270,9 +1188,7 @@ export default function UploadPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-medium text-white">Manual Slider Control</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  Step-by-step motion only. Keyboard arrows also work.
-                </p>
+                <p className="mt-1 text-sm text-slate-400">Step-by-step motion only. Keyboard arrows also work.</p>
               </div>
 
               <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200">
@@ -1288,7 +1204,7 @@ export default function UploadPage() {
                 </div>
                 <input
                   type="range"
-                  min={50}
+                  min={100}
                   max={3000}
                   step={10}
                   value={manualSpeed}
@@ -1304,9 +1220,9 @@ export default function UploadPage() {
                 </div>
                 <input
                   type="range"
-                  min={0.05}
+                  min={0.02}
                   max={2}
-                  step={0.05}
+                  step={0.02}
                   value={manualStepMm}
                   onChange={(e) => setManualStepMm(Number(e.target.value))}
                   className="w-full accent-cyan-400"
@@ -1361,9 +1277,7 @@ export default function UploadPage() {
 
               <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
                 <div className="text-xs uppercase tracking-wide text-slate-500">Last Status</div>
-                <div className="mt-2 text-sm font-medium text-cyan-300">
-                  {scanStatus?.status || "idle"}
-                </div>
+                <div className="mt-2 text-sm font-medium text-cyan-300">{scanStatus?.status || "idle"}</div>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
@@ -1381,6 +1295,12 @@ export default function UploadPage() {
               </div>
             </div>
 
+            {scanError && (
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                {scanError}
+              </div>
+            )}
+
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
@@ -1394,12 +1314,6 @@ export default function UploadPage() {
                 Capture manually after each step if you want.
               </div>
             </div>
-
-            {scanError && (
-              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                {scanError}
-              </div>
-            )}
           </div>
 
           {files.length > 0 && (
@@ -1451,9 +1365,7 @@ export default function UploadPage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-medium text-white">Analysis</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  Upload selected images to cloud analysis when ready.
-                </p>
+                <p className="mt-1 text-sm text-slate-400">Upload selected images to cloud analysis when ready.</p>
               </div>
 
               <button
@@ -1488,9 +1400,7 @@ export default function UploadPage() {
                   />
                 </div>
 
-                {progressText && (
-                  <p className="mt-3 text-sm text-slate-300">{progressText}</p>
-                )}
+                {progressText && <p className="mt-3 text-sm text-slate-300">{progressText}</p>}
 
                 {error && (
                   <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
@@ -1506,15 +1416,11 @@ export default function UploadPage() {
                 <div className="mt-4 grid gap-4 sm:grid-cols-3">
                   <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                     <div className="text-xs uppercase tracking-wide text-slate-500">Files</div>
-                    <div className="mt-2 text-xl font-semibold text-white">
-                      {result.total_files ?? 0}
-                    </div>
+                    <div className="mt-2 text-xl font-semibold text-white">{result.total_files ?? 0}</div>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                     <div className="text-xs uppercase tracking-wide text-slate-500">Total Grains</div>
-                    <div className="mt-2 text-xl font-semibold text-white">
-                      {result.total_grains ?? 0}
-                    </div>
+                    <div className="mt-2 text-xl font-semibold text-white">{result.total_grains ?? 0}</div>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                     <div className="text-xs uppercase tracking-wide text-slate-500">Time</div>
