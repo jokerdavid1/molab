@@ -35,7 +35,6 @@ type MicroscopeStatus = {
   led_on?: boolean;
   light_level?: number;
   exposure_value?: number | null;
-  last_error?: string | null;
 };
 
 type ProcAmpRange = {
@@ -65,7 +64,12 @@ type ScanStatus = {
   running: boolean;
   mode: string;
   status: string;
+  current_image: number;
+  total_images: number;
+  progress_percent: number;
+  output_dir?: string | null;
   error: string | null;
+  step_mm: number | null;
   slider_length_mm: number;
   manual_direction: string | null;
   manual_speed: number | null;
@@ -73,7 +77,7 @@ type ScanStatus = {
   position_x: number | null;
   left_switch_on?: boolean;
   right_switch_on?: boolean;
-  last_step_mm?: number | null;
+  waiting_for_capture?: boolean;
 };
 
 const CLOUD_API = "https://api.molab.ca";
@@ -89,20 +93,23 @@ const PROCAMP_DEFS = [
   { key: "gamma", label: "Gamma", propValueIndex: 5 },
 ];
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export default function UploadPage() {
   const [files, setFiles] = useState<PreviewFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"idle" | "uploading" | "processing" | "completed" | "failed">("idle");
+  const [phase, setPhase] = useState<
+    "idle" | "uploading" | "processing" | "completed" | "failed"
+  >("idle");
   const [currentStep, setCurrentStep] = useState("Idle");
   const [progressText, setProgressText] = useState<string | null>(null);
   const [uploadedBatches, setUploadedBatches] = useState(0);
   const [totalBatches, setTotalBatches] = useState(0);
   const [processedImages, setProcessedImages] = useState(0);
   const [statusPollEnabled, setStatusPollEnabled] = useState(false);
-
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraDevices, setCameraDevices] = useState<CameraDevice[]>([]);
@@ -123,19 +130,31 @@ export default function UploadPage() {
     }))
   );
 
-  const [manualSpeed, setManualSpeed] = useState(300);
-  const [manualStepMm, setManualStepMm] = useState(0.2);
+  const [scanMode, setScanMode] = useState<"auto" | "manual">("auto");
+  const [scanNumImages, setScanNumImages] = useState(5);
+  const [scanSliderLength, setScanSliderLength] = useState(50);
+  const [scanSettleTime, setScanSettleTime] = useState(2);
+  const [manualSpeed, setManualSpeed] = useState(200);
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [autoRunning, setAutoRunning] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const captureCountRef = useRef(1);
+  const pressedKeysRef = useRef<{ left: boolean; right: boolean }>({
+    left: false,
+    right: false,
+  });
+  const autoAbortRef = useRef(false);
 
-  const estimatedSeconds = useMemo(() => files.length * SECONDS_PER_IMAGE, [files.length]);
+  const estimatedSeconds = useMemo(
+    () => files.length * SECONDS_PER_IMAGE,
+    [files.length]
+  );
 
   const totalFilesText = useMemo(() => {
     if (files.length === 0) return "No files selected yet.";
@@ -145,8 +164,10 @@ export default function UploadPage() {
 
   const totalImages = files.length;
   const totalSteps = totalBatches + totalImages;
-  const completedSteps = phase === "completed" ? totalSteps : uploadedBatches + processedImages;
-  const computedProgressPercent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+  const completedSteps =
+    phase === "completed" ? totalSteps : uploadedBatches + processedImages;
+  const computedProgressPercent =
+    totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
   const resetAnalysisState = () => {
     setError(null);
@@ -162,11 +183,19 @@ export default function UploadPage() {
   };
 
   const addFiles = (incomingFiles: File[]) => {
-    const selected = incomingFiles.filter((file) => /\.(png|jpe?g)$/i.test(file.name));
+    const selected = incomingFiles.filter((file) =>
+      /\.(png|jpe?g)$/i.test(file.name)
+    );
+
     if (selected.length === 0) return;
 
     setFiles((prev) => {
-      const existingKeys = new Set(prev.map(({ file }) => `${file.name}-${file.size}-${file.lastModified}`));
+      const existingKeys = new Set(
+        prev.map(
+          ({ file }) => `${file.name}-${file.size}-${file.lastModified}`
+        )
+      );
+
       const newItems = selected
         .filter((file) => {
           const key = `${file.name}-${file.size}-${file.lastModified}`;
@@ -176,6 +205,7 @@ export default function UploadPage() {
           file,
           previewUrl: URL.createObjectURL(file),
         }));
+
       return [...prev, ...newItems];
     });
 
@@ -184,6 +214,17 @@ export default function UploadPage() {
     if (inputRef.current) {
       inputRef.current.value = "";
     }
+  };
+
+  const addSingleCapturedFile = (file: File) => {
+    setFiles((prev) => [
+      ...prev,
+      {
+        file,
+        previewUrl: URL.createObjectURL(file),
+      },
+    ]);
+    resetAnalysisState();
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -216,6 +257,7 @@ export default function UploadPage() {
     setIsDragging(false);
 
     if (isLoading) return;
+
     const droppedFiles = Array.from(e.dataTransfer.files || []);
     addFiles(droppedFiles);
   };
@@ -277,12 +319,14 @@ export default function UploadPage() {
     const results = await Promise.all(
       PROCAMP_DEFS.map(async (item) => {
         try {
-          const rangeRes = await fetch(`${api}/microscope/video-procamp-range/${item.propValueIndex}`, {
-            cache: "no-store",
-          });
-          const valueRes = await fetch(`${api}/microscope/video-procamp/${item.propValueIndex}`, {
-            cache: "no-store",
-          });
+          const rangeRes = await fetch(
+            `${api}/microscope/video-procamp-range/${item.propValueIndex}`,
+            { cache: "no-store" }
+          );
+          const valueRes = await fetch(
+            `${api}/microscope/video-procamp/${item.propValueIndex}`,
+            { cache: "no-store" }
+          );
 
           if (!rangeRes.ok || !valueRes.ok) {
             return {
@@ -348,7 +392,9 @@ export default function UploadPage() {
 
       return data;
     } catch (err) {
-      setCameraError(err instanceof Error ? err.message : "Microscope update failed.");
+      setCameraError(
+        err instanceof Error ? err.message : "Microscope update failed."
+      );
       throw err;
     } finally {
       setMicroscopeBusy(false);
@@ -409,7 +455,9 @@ export default function UploadPage() {
       setCameraDevices(videos);
 
       if (!selectedCameraId && videos.length > 0) {
-        const microscope = videos.find((d) => d.label.toLowerCase().includes("micro")) || videos[0];
+        const microscope =
+          videos.find((d) => d.label.toLowerCase().includes("micro")) ||
+          videos[0];
         setSelectedCameraId(microscope.deviceId);
       }
     } catch {
@@ -491,7 +539,9 @@ export default function UploadPage() {
       setTimeout(async () => {
         const preferredId =
           selectedCameraId ||
-          (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput")[0]?.deviceId ||
+          (await navigator.mediaDevices.enumerateDevices()).filter(
+            (d) => d.kind === "videoinput"
+          )[0]?.deviceId ||
           "";
 
         if (preferredId) {
@@ -501,11 +551,15 @@ export default function UploadPage() {
         }
       }, 100);
     } catch {
-      setCameraError("Could not access camera permission. Please allow camera access in Chrome.");
+      setCameraError(
+        "Could not access camera permission. Please allow camera access in Chrome."
+      );
     }
   };
 
-  const handleCameraChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleCameraChange = async (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
     const newId = e.target.value;
     setSelectedCameraId(newId);
 
@@ -552,10 +606,14 @@ export default function UploadPage() {
       }
 
       const now = Date.now();
-      const file = new File([blob], `microscope_capture_${now}_${captureCountRef.current}.jpg`, {
-        type: "image/jpeg",
-        lastModified: now,
-      });
+      const file = new File(
+        [blob],
+        `microscope_capture_${now}_${captureCountRef.current}.jpg`,
+        {
+          type: "image/jpeg",
+          lastModified: now,
+        }
+      );
 
       captureCountRef.current += 1;
       addFiles([file]);
@@ -563,6 +621,51 @@ export default function UploadPage() {
     } catch {
       setCameraError("Failed to capture image.");
     }
+  };
+
+  const capturePhotoForAuto = async (index: number) => {
+    if (!videoRef.current || !canvasRef.current) {
+      throw new Error("Camera preview is not ready.");
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (!width || !height) {
+      throw new Error("Camera preview is not ready yet.");
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Could not capture image.");
+    }
+
+    ctx.drawImage(video, 0, 0, width, height);
+
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.95)
+    );
+
+    if (!blob) {
+      throw new Error("Could not create image file.");
+    }
+
+    const now = Date.now();
+    const file = new File(
+      [blob],
+      `auto_scan_${String(index).padStart(3, "0")}_${now}.jpg`,
+      {
+        type: "image/jpeg",
+        lastModified: now,
+      }
+    );
+
+    addSingleCapturedFile(file);
   };
 
   const fetchScanStatus = async () => {
@@ -577,65 +680,155 @@ export default function UploadPage() {
     } catch {}
   };
 
-  const manualStep = async (direction: "left" | "right") => {
-    try {
-      setScanBusy(true);
-      setScanError(null);
+  const startAutomaticScan = async () => {
+    setScanBusy(true);
+    setScanError(null);
+    setAutoRunning(true);
+    autoAbortRef.current = false;
 
-      const res = await fetch(`${LOCAL_API}/scan/manual/step`, {
+    try {
+      if (!cameraOpen) {
+        await openCamera();
+        await wait(1200);
+      }
+
+      const res = await fetch(`${LOCAL_API}/scan/auto/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          direction,
-          step_mm: manualStepMm,
+          total_images: scanNumImages,
+          slider_length_mm: scanSliderLength,
           speed: manualSpeed,
         }),
       });
 
       const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data?.detail || data?.error || "Failed to move slider.");
+        throw new Error(data?.detail || data?.error || "Failed to start automatic scan.");
       }
 
-      setScanStatus(data as ScanStatus);
+      await fetchScanStatus();
+
+      for (let i = 1; i <= scanNumImages; i++) {
+        if (autoAbortRef.current) {
+          break;
+        }
+
+        let ready = false;
+
+        for (let tries = 0; tries < 300; tries++) {
+          const statusRes = await fetch(`${LOCAL_API}/scan/status`, {
+            method: "GET",
+            cache: "no-store",
+          });
+
+          if (!statusRes.ok) {
+            await wait(150);
+            continue;
+          }
+
+          const statusData = (await statusRes.json()) as ScanStatus;
+          setScanStatus(statusData);
+
+          if (statusData.error) {
+            throw new Error(statusData.error);
+          }
+
+          if (
+            statusData.waiting_for_capture &&
+            statusData.current_image === i &&
+            statusData.status === "waiting_for_capture"
+          ) {
+            ready = true;
+            break;
+          }
+
+          if (!statusData.running && statusData.status === "completed") {
+            ready = false;
+            break;
+          }
+
+          await wait(120);
+        }
+
+        if (!ready) {
+          throw new Error(`Backend was not ready for capture ${i}.`);
+        }
+
+        await wait(Math.max(0, scanSettleTime) * 1000);
+        await capturePhotoForAuto(i);
+
+        const capturedRes = await fetch(`${LOCAL_API}/scan/auto/captured`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            index: i,
+            filename: `auto_scan_${String(i).padStart(3, "0")}.jpg`,
+          }),
+        });
+
+        const capturedData = await capturedRes.json();
+
+        if (!capturedRes.ok) {
+          throw new Error(
+            capturedData?.detail ||
+              capturedData?.error ||
+              `Failed after capture ${i}.`
+          );
+        }
+
+        setScanStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                current_image: i,
+                progress_percent: (100 * i) / scanNumImages,
+              }
+            : prev
+        );
+
+        await wait(150);
+      }
+
       await fetchScanStatus();
     } catch (err) {
-      setScanError(err instanceof Error ? err.message : "Failed to move slider.");
+      setScanError(err instanceof Error ? err.message : "Failed to start automatic scan.");
     } finally {
       setScanBusy(false);
+      setAutoRunning(false);
     }
   };
 
-  const stopSlider = async () => {
+  const stopAutomaticScan = async () => {
     try {
+      autoAbortRef.current = true;
       await fetch(`${LOCAL_API}/scan/stop`, { method: "POST" });
       await fetchScanStatus();
     } catch {}
   };
 
-  const homeSlider = async () => {
+  const startManualMove = async (direction: "left" | "right") => {
     try {
-      setScanBusy(true);
       setScanError(null);
-
-      const res = await fetch(`${LOCAL_API}/scan/home`, {
+      await fetch(`${LOCAL_API}/scan/manual/move`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          direction,
+          speed: manualSpeed,
+        }),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.detail || data?.error || "Failed to home slider.");
-      }
-
-      setScanStatus(data as ScanStatus);
       await fetchScanStatus();
     } catch (err) {
-      setScanError(err instanceof Error ? err.message : "Failed to home slider.");
-    } finally {
-      setScanBusy(false);
+      setScanError(err instanceof Error ? err.message : "Failed to move slider.");
     }
+  };
+
+  const stopManualMove = async () => {
+    try {
+      await fetch(`${LOCAL_API}/scan/manual/stop`, { method: "POST" });
+      await fetchScanStatus();
+    } catch {}
   };
 
   const captureManualBrowser = async () => {
@@ -644,10 +837,7 @@ export default function UploadPage() {
 
       if (!cameraOpen) {
         await openCamera();
-        setTimeout(async () => {
-          await capturePhoto();
-        }, 800);
-        return;
+        await wait(1000);
       }
 
       await capturePhoto();
@@ -665,7 +855,7 @@ export default function UploadPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       fetchScanStatus();
-    }, 700);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, []);
@@ -690,7 +880,12 @@ export default function UploadPage() {
           setPhase("processing");
           setProcessedImages(done);
           setCurrentStep("Processing images...");
-          setProgressText(done < total ? `Image ${done + 1} of ${total}` : `Image ${total} of ${total}`);
+
+          if (done < total) {
+            setProgressText(`Image ${done + 1} of ${total}`);
+          } else {
+            setProgressText(`Image ${total} of ${total}`);
+          }
         }
 
         if (data.status === "completed") {
@@ -728,35 +923,38 @@ export default function UploadPage() {
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) {
-        return;
+      if (scanMode !== "manual") return;
+      if (e.repeat) return;
+      if (e.key === "ArrowLeft" && !pressedKeysRef.current.left) {
+        pressedKeysRef.current.left = true;
+        await startManualMove("left");
       }
+      if (e.key === "ArrowRight" && !pressedKeysRef.current.right) {
+        pressedKeysRef.current.right = true;
+        await startManualMove("right");
+      }
+    };
 
+    const handleKeyUp = async (e: KeyboardEvent) => {
+      if (scanMode !== "manual") return;
       if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        if (!scanBusy) {
-          await manualStep("left");
-        }
+        pressedKeysRef.current.left = false;
+        await stopManualMove();
       }
-
       if (e.key === "ArrowRight") {
-        e.preventDefault();
-        if (!scanBusy) {
-          await manualStep("right");
-        }
+        pressedKeysRef.current.right = false;
+        await stopManualMove();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [scanBusy, manualStepMm, manualSpeed]);
+  }, [scanMode, manualSpeed]);
 
   useEffect(() => {
     return () => {
@@ -765,7 +963,7 @@ export default function UploadPage() {
       }
       files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
-  }, [files]);
+  }, []);
 
   const startAnalysis = async () => {
     if (files.length === 0) {
@@ -803,6 +1001,7 @@ export default function UploadPage() {
 
       for (let i = 0; i < fileChunks.length; i++) {
         const batch = fileChunks[i];
+
         setPhase("uploading");
         setCurrentStep("Uploading images...");
         setProgressText("Uploading images...");
@@ -820,7 +1019,9 @@ export default function UploadPage() {
         const uploadData = await uploadRes.json();
 
         if (!uploadRes.ok) {
-          throw new Error(uploadData?.error || uploadData?.detail || "Batch upload failed.");
+          throw new Error(
+            uploadData?.error || uploadData?.detail || "Batch upload failed."
+          );
         }
 
         setUploadedBatches(i + 1);
@@ -833,7 +1034,9 @@ export default function UploadPage() {
       const completeData = await completeRes.json();
 
       if (!completeRes.ok) {
-        throw new Error(completeData?.error || completeData?.detail || "Failed to start analysis.");
+        throw new Error(
+          completeData?.error || completeData?.detail || "Failed to start analysis."
+        );
       }
 
       setPhase("processing");
@@ -841,7 +1044,11 @@ export default function UploadPage() {
       setProgressText(`Image 1 of ${files.length}`);
       setStatusPollEnabled(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong during analysis.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong during analysis."
+      );
       setPhase("failed");
       setCurrentStep("Failed");
       setProgressText(null);
@@ -901,7 +1108,7 @@ export default function UploadPage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            Use browser camera + Dino-Lite SDK controls + manual slider stepping.
+            Upload all grain images you want to analyze in one premium batch workflow.
           </p>
         </div>
 
@@ -918,8 +1125,13 @@ export default function UploadPage() {
             }`}
           >
             <div className="mx-auto max-w-2xl">
-              <p className="text-lg font-medium text-white">Drag and drop your images here</p>
-              <p className="mt-2 text-sm text-slate-400">Or click below to browse files.</p>
+              <p className="text-lg font-medium text-white">
+                Drag and drop your images here
+              </p>
+
+              <p className="mt-2 text-sm text-slate-400">
+                Or click below to browse files.
+              </p>
 
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <label className="inline-flex cursor-pointer rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105">
@@ -943,17 +1155,23 @@ export default function UploadPage() {
                 </button>
               </div>
 
-              <div className="mt-4 text-sm text-slate-500">Supported formats: PNG, JPG, JPEG</div>
+              <div className="mt-4 text-sm text-slate-500">
+                Supported formats: PNG, JPG, JPEG
+              </div>
             </div>
           </div>
 
           {(cameraDevices.length > 0 || cameraOpen) && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-              <h2 className="text-lg font-medium text-white">Microscope / Camera Capture</h2>
+              <h2 className="text-lg font-medium text-white">
+                Microscope / Camera Capture
+              </h2>
 
               {cameraDevices.length > 0 && (
                 <div className="mt-4">
-                  <label className="mb-2 block text-sm text-slate-300">Camera source</label>
+                  <label className="mb-2 block text-sm text-slate-300">
+                    Camera source
+                  </label>
                   <select
                     value={selectedCameraId}
                     onChange={handleCameraChange}
@@ -1010,7 +1228,9 @@ export default function UploadPage() {
                 <div className="min-w-0">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-base font-medium text-white">Live Controls</h3>
+                      <h3 className="text-base font-medium text-white">
+                        Live Controls
+                      </h3>
                       <div className="flex items-center gap-3">
                         <span
                           className={`rounded-full px-2.5 py-1 text-[11px] uppercase tracking-wide ${
@@ -1021,7 +1241,9 @@ export default function UploadPage() {
                         >
                           {microscopeApiLabel === "local" ? "Local" : "Cloud"}
                         </span>
-                        {microscopeBusy && <span className="text-xs text-cyan-300">Updating...</span>}
+                        {microscopeBusy && (
+                          <span className="text-xs text-cyan-300">Updating...</span>
+                        )}
                       </div>
                     </div>
 
@@ -1044,7 +1266,9 @@ export default function UploadPage() {
                       <div>
                         <div className="mb-2 flex items-center justify-between text-sm">
                           <span className="text-slate-300">Light level</span>
-                          <span className="text-cyan-300">{microscopeStatus?.light_level ?? 6}</span>
+                          <span className="text-cyan-300">
+                            {microscopeStatus?.light_level ?? 6}
+                          </span>
                         </div>
                         <input
                           type="range"
@@ -1058,9 +1282,15 @@ export default function UploadPage() {
                               prev ? { ...prev, light_level: value, led_on: true } : prev
                             );
                           }}
-                          onMouseUp={(e) => setLightLevel(Number((e.target as HTMLInputElement).value))}
-                          onTouchEnd={(e) => setLightLevel(Number((e.target as HTMLInputElement).value))}
-                          onKeyUp={(e) => setLightLevel(Number((e.target as HTMLInputElement).value))}
+                          onMouseUp={(e) =>
+                            setLightLevel(Number((e.target as HTMLInputElement).value))
+                          }
+                          onTouchEnd={(e) =>
+                            setLightLevel(Number((e.target as HTMLInputElement).value))
+                          }
+                          onKeyUp={(e) =>
+                            setLightLevel(Number((e.target as HTMLInputElement).value))
+                          }
                           className="w-full accent-cyan-400"
                         />
                       </div>
@@ -1068,7 +1298,9 @@ export default function UploadPage() {
                       <div>
                         <div className="mb-2 flex items-center justify-between text-sm">
                           <span className="text-slate-300">Exposure</span>
-                          <span className="text-cyan-300">{microscopeStatus?.exposure_value ?? 1}</span>
+                          <span className="text-cyan-300">
+                            {microscopeStatus?.exposure_value ?? 1}
+                          </span>
                         </div>
                         <input
                           type="range"
@@ -1082,9 +1314,15 @@ export default function UploadPage() {
                               prev ? { ...prev, exposure_value: value } : prev
                             );
                           }}
-                          onMouseUp={(e) => setExposure(Number((e.target as HTMLInputElement).value))}
-                          onTouchEnd={(e) => setExposure(Number((e.target as HTMLInputElement).value))}
-                          onKeyUp={(e) => setExposure(Number((e.target as HTMLInputElement).value))}
+                          onMouseUp={(e) =>
+                            setExposure(Number((e.target as HTMLInputElement).value))
+                          }
+                          onTouchEnd={(e) =>
+                            setExposure(Number((e.target as HTMLInputElement).value))
+                          }
+                          onKeyUp={(e) =>
+                            setExposure(Number((e.target as HTMLInputElement).value))
+                          }
                           className="w-full accent-cyan-400"
                         />
                       </div>
@@ -1094,28 +1332,33 @@ export default function UploadPage() {
                       <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-400">
                         <div className="flex items-center justify-between">
                           <span>SDK device</span>
-                          <span className="text-slate-200">{microscopeStatus.device_name || "Unknown"}</span>
+                          <span className="text-slate-200">
+                            {microscopeStatus.device_name || "Unknown"}
+                          </span>
                         </div>
                         <div className="mt-2 flex items-center justify-between">
                           <span>Devices found</span>
-                          <span className="text-slate-200">{microscopeStatus.device_count ?? 0}</span>
+                          <span className="text-slate-200">
+                            {microscopeStatus.device_count ?? 0}
+                          </span>
                         </div>
-                        {microscopeStatus.last_error && (
-                          <div className="mt-2 text-red-300">{microscopeStatus.last_error}</div>
-                        )}
                       </div>
                     )}
 
                     {supportedProcAmpControls.length > 0 && (
                       <div className="mt-5 border-t border-white/10 pt-5">
-                        <h4 className="text-sm font-medium text-white">Image Properties</h4>
+                        <h4 className="text-sm font-medium text-white">
+                          Image Properties
+                        </h4>
 
                         <div className="mt-4 space-y-5">
                           {supportedProcAmpControls.map((control) => {
                             const min = control.range?.min ?? 0;
                             const max = control.range?.max ?? 100;
                             const step =
-                              control.range?.step && control.range.step > 0 ? control.range.step : 1;
+                              control.range?.step && control.range.step > 0
+                                ? control.range.step
+                                : 1;
 
                             return (
                               <div key={control.key}>
@@ -1134,7 +1377,9 @@ export default function UploadPage() {
                                     const value = Number(e.target.value);
                                     setProcAmpControls((prev) =>
                                       prev.map((item) =>
-                                        item.key === control.key ? { ...item, value } : item
+                                        item.key === control.key
+                                          ? { ...item, value }
+                                          : item
                                       )
                                     );
                                   }}
@@ -1187,264 +1432,483 @@ export default function UploadPage() {
           <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-medium text-white">Manual Slider Control</h2>
-                <p className="mt-1 text-sm text-slate-400">Step-by-step motion only. Keyboard arrows also work.</p>
+                <h2 className="text-lg font-medium text-white">Slider Scan Control</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Choose Automatic for full scan capture, or Manual for live slider control.
+                </p>
               </div>
 
-              <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200">
-                Keyboard: ← and →
-              </div>
-            </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setScanMode("auto")}
+                  className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+                    scanMode === "auto"
+                      ? "bg-cyan-400 text-slate-950"
+                      : "border border-white/10 bg-white/5 text-slate-200"
+                  }`}
+                >
+                  Automatic
+                </button>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="text-slate-300">Manual Speed</span>
-                  <span className="text-cyan-300">{manualSpeed}</span>
-                </div>
-                <input
-                  type="range"
-                  min={100}
-                  max={3000}
-                  step={10}
-                  value={manualSpeed}
-                  onChange={(e) => setManualSpeed(Number(e.target.value))}
-                  className="w-full accent-cyan-400"
-                />
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="text-slate-300">Step Size (mm)</span>
-                  <span className="text-cyan-300">{manualStepMm.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0.02}
-                  max={2}
-                  step={0.02}
-                  value={manualStepMm}
-                  onChange={(e) => setManualStepMm(Number(e.target.value))}
-                  className="w-full accent-cyan-400"
-                />
+                <button
+                  type="button"
+                  onClick={() => setScanMode("manual")}
+                  className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+                    scanMode === "manual"
+                      ? "bg-cyan-400 text-slate-950"
+                      : "border border-white/10 bg-white/5 text-slate-200"
+                  }`}
+                >
+                  Manual
+                </button>
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-4">
-              <button
-                type="button"
-                onClick={() => manualStep("left")}
-                disabled={scanBusy || !!scanStatus?.left_switch_on}
-                className="rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                ◀ Move Left
-              </button>
+            {scanMode === "auto" && (
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-sm text-slate-300">Number of Images</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={scanNumImages}
+                    onChange={(e) => setScanNumImages(Number(e.target.value))}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </div>
 
-              <button
-                type="button"
-                onClick={() => manualStep("right")}
-                disabled={scanBusy || !!scanStatus?.right_switch_on}
-                className="rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Move Right ▶
-              </button>
+                <div>
+                  <label className="mb-2 block text-sm text-slate-300">Usable Slider Length (mm)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={scanSliderLength}
+                    onChange={(e) => setScanSliderLength(Number(e.target.value))}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </div>
 
-              <button
-                type="button"
-                onClick={homeSlider}
-                disabled={scanBusy}
-                className="rounded-xl bg-cyan-400 px-5 py-4 text-sm font-semibold text-slate-950 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Home Left
-              </button>
+                <div>
+                  <label className="mb-2 block text-sm text-slate-300">Settle Time (s)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    value={scanSettleTime}
+                    onChange={(e) => setScanSettleTime(Number(e.target.value))}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </div>
 
-              <button
-                type="button"
-                onClick={stopSlider}
-                className="rounded-xl border border-red-400/20 bg-red-500/10 px-5 py-4 text-sm font-medium text-red-300 transition hover:bg-red-500/20"
-              >
-                Stop
-              </button>
-            </div>
+                <div className="md:col-span-3 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={startAutomaticScan}
+                    disabled={scanBusy || !!scanStatus?.running || autoRunning}
+                    className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {scanBusy ? "Starting..." : "Start Automatic Scan"}
+                  </button>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="text-xs uppercase tracking-wide text-slate-500">Position X</div>
-                <div className="mt-2 text-xl font-semibold text-white">
-                  {scanStatus?.position_x != null ? `${scanStatus.position_x.toFixed(3)} mm` : "—"}
+                  <button
+                    type="button"
+                    onClick={stopAutomaticScan}
+                    className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
+                  >
+                    Stop Scan
+                  </button>
+                </div>
+
+                <div className="md:col-span-3 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
+                  Calculated step:{" "}
+                  <span className="font-semibold text-cyan-300">
+                    {scanNumImages > 1
+                      ? (scanSliderLength / (scanNumImages - 1)).toFixed(3)
+                      : "0.000"}{" "}
+                    mm
+                  </span>
                 </div>
               </div>
+            )}
 
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="text-xs uppercase tracking-wide text-slate-500">Last Status</div>
-                <div className="mt-2 text-sm font-medium text-cyan-300">{scanStatus?.status || "idle"}</div>
+            {scanMode === "manual" && (
+              <div className="mt-6 space-y-5">
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-300">Manual Speed</span>
+                    <span className="text-cyan-300">{manualSpeed}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50}
+                    max={1000}
+                    step={10}
+                    value={manualSpeed}
+                    onChange={(e) => setManualSpeed(Number(e.target.value))}
+                    className="w-full accent-cyan-400"
+                  />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onMouseDown={() => startManualMove("left")}
+                    onMouseUp={stopManualMove}
+                    onMouseLeave={stopManualMove}
+                    onTouchStart={() => startManualMove("left")}
+                    onTouchEnd={stopManualMove}
+                    className="rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                  >
+                    ⬅️ Move Left
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={() => startManualMove("right")}
+                    onMouseUp={stopManualMove}
+                    onMouseLeave={stopManualMove}
+                    onTouchStart={() => startManualMove("right")}
+                    onTouchEnd={stopManualMove}
+                    className="rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                  >
+                    ➡️ Move Right
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={captureManualBrowser}
+                  className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:scale-105"
+                >
+                  Capture Manual Image
+                </button>
+
+                <p className="text-sm text-slate-400">
+                  Keyboard control: use the left and right arrow keys.
+                </p>
               </div>
+            )}
 
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="text-xs uppercase tracking-wide text-slate-500">Left Switch</div>
-                <div className={`mt-2 text-sm font-semibold ${scanStatus?.left_switch_on ? "text-amber-300" : "text-emerald-300"}`}>
-                  {scanStatus?.left_switch_on ? "ON / BLOCKED" : "OFF"}
+            {scanStatus && (
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Mode</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{scanStatus.mode}</p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Status</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{scanStatus.status}</p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Position X</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {scanStatus.position_x != null ? scanStatus.position_x.toFixed(3) : "—"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Switch</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {scanStatus.switch_on ? "ON" : "OFF"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Left / Right</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {scanStatus.left_switch_on ? "LEFT" : scanStatus.right_switch_on ? "RIGHT" : "—"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Progress</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {scanStatus.current_image} / {scanStatus.total_images}
+                  </p>
                 </div>
               </div>
+            )}
 
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="text-xs uppercase tracking-wide text-slate-500">Right Switch</div>
-                <div className={`mt-2 text-sm font-semibold ${scanStatus?.right_switch_on ? "text-amber-300" : "text-emerald-300"}`}>
-                  {scanStatus?.right_switch_on ? "ON / BLOCKED" : "OFF"}
+            {scanStatus && scanStatus.total_images > 0 && (
+              <div className="mt-4">
+                <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500 transition-all duration-500"
+                    style={{ width: `${scanStatus.progress_percent}%` }}
+                  />
+                </div>
+                <div className="mt-2 text-right text-xs text-slate-400">
+                  {scanStatus.progress_percent}%
                 </div>
               </div>
-            </div>
+            )}
+
+            {scanStatus?.output_dir && (
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-300">
+                Output folder: <span className="text-cyan-300">{scanStatus.output_dir}</span>
+              </div>
+            )}
 
             {scanError && (
-              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-300">
                 {scanError}
               </div>
             )}
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={captureManualBrowser}
-                className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
-              >
-                Capture From Browser Camera
-              </button>
-
-              <div className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-slate-300">
-                Capture manually after each step if you want.
+            {scanStatus?.error && (
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-300">
+                {scanStatus.error}
               </div>
-            </div>
+            )}
           </div>
 
           {files.length > 0 && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-medium text-white">Selected Images</h2>
-                  <p className="mt-1 text-sm text-slate-400">{totalFilesText}</p>
-                </div>
+            <div
+              className={`mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 transition ${
+                isLoading ? "pointer-events-none opacity-70 blur-[1px]" : ""
+              }`}
+            >
+              <h2 className="text-lg font-medium text-white">Selected files</h2>
 
-                <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
-                  Estimated analysis time: {estimatedSeconds} sec
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {files.map((item, index) => (
                   <div
-                    key={`${item.file.name}-${item.file.lastModified}-${index}`}
-                    className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]"
+                    key={`${item.file.name}-${index}`}
+                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300"
                   >
-                    <div className="relative aspect-[4/3] w-full bg-black">
-                      <Image
+                    <div className="flex min-w-0 items-center gap-3">
+                      <img
                         src={item.previewUrl}
                         alt={item.file.name}
-                        fill
-                        className="object-cover"
-                        unoptimized
+                        className="h-14 w-14 rounded-lg border border-white/10 object-cover bg-black"
                       />
+                      <span className="truncate">{item.file.name}</span>
                     </div>
 
-                    <div className="p-3">
-                      <p className="truncate text-sm text-slate-200">{item.file.name}</p>
-                      <button
-                        type="button"
-                        onClick={() => removeFile(index)}
-                        className="mt-3 rounded-full border border-red-400/20 bg-red-500/10 px-4 py-2 text-xs text-red-300 transition hover:bg-red-500/20"
-                      >
-                        Remove
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(index)}
+                      className="ml-4 flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-red-300 transition hover:bg-red-500/40"
+                    >
+                      ×
+                    </button>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-6 flex flex-col items-center">
+                <button
+                  type="button"
+                  onClick={startAnalysis}
+                  disabled={isLoading}
+                  className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_30px_rgba(34,211,238,0.22)] transition duration-300 hover:scale-105 hover:bg-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
+                >
+                  {isLoading ? "Processing Sample..." : "Start Analysis"}
+                </button>
+
+                {showBottomSummary && (
+                  <div className="mt-4 text-center">
+                    <p className="text-sm text-slate-300">{totalFilesText}</p>
+                    <p className="mt-1 text-sm text-cyan-300">
+                      Estimated time: {estimatedSeconds} second
+                      {estimatedSeconds !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-medium text-white">Analysis</h2>
-                <p className="mt-1 text-sm text-slate-400">Upload selected images to cloud analysis when ready.</p>
-              </div>
+          {(isLoading || progressText || phase === "completed") && (
+            <div className="mt-6 overflow-hidden rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-blue-500/10 p-5 shadow-[0_0_40px_rgba(34,211,238,0.08)]">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p
+                    className={`text-xs uppercase tracking-[0.25em] ${
+                      phase === "completed"
+                        ? "text-emerald-300"
+                        : "animate-pulse text-cyan-300"
+                    }`}
+                  >
+                    {phase === "completed" ? "Completed" : "Processing"}
+                  </p>
 
-              <button
-                type="button"
-                onClick={startAnalysis}
-                disabled={isLoading || files.length === 0}
-                className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isLoading ? "Running..." : "Start Analysis"}
-              </button>
-            </div>
+                  <p className="mt-2 text-lg font-medium text-white">
+                    {currentStep}
+                  </p>
 
-            {(phase !== "idle" || result || error) && (
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm text-slate-400">Current step</div>
-                    <div className="mt-1 text-base font-medium text-white">{currentStep}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-slate-400">Progress</div>
-                    <div className="mt-1 text-base font-medium text-cyan-300">
-                      {computedProgressPercent}%
-                    </div>
-                  </div>
+                  {progressText && (
+                    <p className="mt-1 text-sm text-slate-400">{progressText}</p>
+                  )}
                 </div>
 
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className={`flex h-14 w-14 items-center justify-center rounded-full border shadow-[0_0_30px_rgba(34,211,238,0.12)] ${
+                    phase === "completed"
+                      ? "border-emerald-300/30 bg-emerald-400/10"
+                      : "border-cyan-300/20 bg-cyan-400/10"
+                  }`}
+                >
+                  {phase === "completed" ? (
+                    <svg
+                      className="h-7 w-7 text-emerald-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="h-3 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-cyan-400 transition-all"
+                    className={`h-full rounded-full transition-all duration-500 ease-out ${
+                      phase === "completed"
+                        ? "bg-gradient-to-r from-emerald-300 via-emerald-400 to-green-500"
+                        : "bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500"
+                    }`}
                     style={{ width: `${computedProgressPercent}%` }}
                   />
                 </div>
 
-                {progressText && <p className="mt-3 text-sm text-slate-300">{progressText}</p>}
-
-                {error && (
-                  <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                    {error}
-                  </div>
-                )}
+                <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+                  <span>0%</span>
+                  <span>{computedProgressPercent}%</span>
+                  <span>100%</span>
+                </div>
               </div>
-            )}
 
-            {result && (
-              <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-                <h3 className="text-lg font-semibold text-emerald-300">Analysis Complete</h3>
-                <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-wide text-slate-500">Files</div>
-                    <div className="mt-2 text-xl font-semibold text-white">{result.total_files ?? 0}</div>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-wide text-slate-500">Total Grains</div>
-                    <div className="mt-2 text-xl font-semibold text-white">{result.total_grains ?? 0}</div>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-wide text-slate-500">Time</div>
-                    <div className="mt-2 text-xl font-semibold text-white">
-                      {result.processing_time_seconds ?? 0}s
-                    </div>
-                  </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Files</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{files.length}</p>
                 </div>
 
-                {result.zip_url && (
-                  <a
-                    href={`${CLOUD_API}${result.zip_url}`}
-                    className="mt-5 inline-flex rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:scale-105"
-                  >
-                    Download ZIP
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Done</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {phase === "completed" ? files.length : processedImages}
+                  </p>
+                </div>
 
-          {showBottomSummary && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-300">
-              Ready for manual capture and stepping.
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Status</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {phase === "uploading"
+                      ? "Uploading"
+                      : phase === "processing"
+                      ? "Analyzing"
+                      : phase === "completed"
+                      ? "Finished"
+                      : "Idle"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-6 w-full rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
+
+          {result && phase === "completed" && (
+            <div className="mt-6 w-full rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 via-slate-900/40 to-cyan-500/10 p-5 shadow-[0_0_40px_rgba(16,185,129,0.08)]">
+              <h3 className="text-lg font-medium text-emerald-200">
+                Analysis Completed Successfully
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Your sample has been processed and the final sieve results are ready.
+              </p>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Files</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {result.total_files ?? 0}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Total Grains</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {result.total_grains ?? 0}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Processing Time</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {result.processing_time_seconds?.toFixed(1) ?? "0.0"} s
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <h4 className="text-base font-medium text-white">Sieve Result Table</h4>
+
+                <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
+                  <table className="min-w-full divide-y divide-white/10">
+                    <thead className="bg-white/[0.04]">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">
+                          Mesh
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">
+                          Percent (%)
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-white/10 bg-black/20">
+                      {result.sieve_results && result.sieve_results.length > 0 ? (
+                        result.sieve_results.map((row, index) => (
+                          <tr key={`${row.mesh}-${index}`}>
+                            <td className="px-4 py-3 text-sm text-slate-200">{row.mesh}</td>
+                            <td className="px-4 py-3 text-sm text-slate-200">
+                              {row.percent.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="px-4 py-4 text-sm text-slate-400">
+                            No sieve results available.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {result.zip_url && (
+                <div className="mt-6 flex justify-center">
+                  <a
+                    href={
+                      result.zip_url.startsWith("http")
+                        ? result.zip_url
+                        : `${CLOUD_API}${result.zip_url}`
+                    }
+                    className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
+                  >
+                    Download Results ZIP
+                  </a>
+                </div>
+              )}
             </div>
           )}
         </div>
