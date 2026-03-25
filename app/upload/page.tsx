@@ -59,6 +59,23 @@ type PreviewFile = {
   previewUrl: string;
 };
 
+type ScanStatus = {
+  running: boolean;
+  mode: string;
+  status: string;
+  current_image: number;
+  total_images: number;
+  progress_percent: number;
+  output_dir: string | null;
+  error: string | null;
+  step_mm: number | null;
+  slider_length_mm: number;
+  manual_direction: string | null;
+  manual_speed: number | null;
+  switch_on: boolean;
+  position_x: number | null;
+};
+
 const CLOUD_API = "https://api.molab.ca";
 const LOCAL_API = "http://127.0.0.1:8000";
 const BATCH_SIZE = 8;
@@ -107,11 +124,25 @@ export default function UploadPage() {
     }))
   );
 
+  // NEW SCAN STATES
+  const [scanMode, setScanMode] = useState<"auto" | "manual">("auto");
+  const [scanNumImages, setScanNumImages] = useState(5);
+  const [scanSliderLength, setScanSliderLength] = useState(100);
+  const [scanSettleTime, setScanSettleTime] = useState(2);
+  const [manualSpeed, setManualSpeed] = useState(200);
+  const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const captureCountRef = useRef(1);
+  const pressedKeysRef = useRef<{ left: boolean; right: boolean }>({
+    left: false,
+    right: false,
+  });
 
   const estimatedSeconds = useMemo(
     () => files.length * SECONDS_PER_IMAGE,
@@ -574,8 +605,121 @@ export default function UploadPage() {
     }
   };
 
+  // NEW SCAN FUNCTIONS
+  const fetchScanStatus = async () => {
+    try {
+      const res = await fetch(`${LOCAL_API}/scan/status`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as ScanStatus;
+      setScanStatus(data);
+    } catch {}
+  };
+
+  const startAutomaticScan = async () => {
+    setScanBusy(true);
+    setScanError(null);
+
+    try {
+      // release browser camera so backend can use the microscope if needed
+      if (cameraOpen) {
+        stopCamera();
+      }
+
+      const res = await fetch(`${LOCAL_API}/scan/auto/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          num_images: scanNumImages,
+          slider_length_mm: scanSliderLength,
+          settle_time: scanSettleTime,
+          feed_rate: 200,
+          home_feed_rate: 400,
+          home_backoff_mm: 5,
+          return_home_after_scan: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || "Failed to start automatic scan.");
+      }
+
+      await fetchScanStatus();
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : "Failed to start automatic scan.");
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
+  const stopAutomaticScan = async () => {
+    try {
+      await fetch(`${LOCAL_API}/scan/stop`, { method: "POST" });
+      await fetchScanStatus();
+    } catch {}
+  };
+
+  const startManualMove = async (direction: "left" | "right") => {
+    try {
+      setScanError(null);
+      await fetch(`${LOCAL_API}/scan/manual/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          direction,
+          speed: manualSpeed,
+        }),
+      });
+      await fetchScanStatus();
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : "Failed to move slider.");
+    }
+  };
+
+  const stopManualMove = async () => {
+    try {
+      await fetch(`${LOCAL_API}/scan/manual/stop`, { method: "POST" });
+      await fetchScanStatus();
+    } catch {}
+  };
+
+  const captureManualBackend = async () => {
+    try {
+      setScanError(null);
+
+      if (cameraOpen) {
+        stopCamera();
+      }
+
+      const res = await fetch(`${LOCAL_API}/scan/manual/capture`, {
+        method: "POST",
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || "Failed to capture image.");
+      }
+
+      await fetchScanStatus();
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : "Failed to capture image.");
+    }
+  };
+
   useEffect(() => {
     detectMicroscopeApi();
+    fetchScanStatus();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchScanStatus();
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -638,6 +782,41 @@ export default function UploadPage() {
 
     return () => clearInterval(interval);
   }, [statusPollEnabled, jobId, files.length]);
+
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (scanMode !== "manual") return;
+      if (e.repeat) return;
+      if (e.key === "ArrowLeft" && !pressedKeysRef.current.left) {
+        pressedKeysRef.current.left = true;
+        await startManualMove("left");
+      }
+      if (e.key === "ArrowRight" && !pressedKeysRef.current.right) {
+        pressedKeysRef.current.right = true;
+        await startManualMove("right");
+      }
+    };
+
+    const handleKeyUp = async (e: KeyboardEvent) => {
+      if (scanMode !== "manual") return;
+      if (e.key === "ArrowLeft") {
+        pressedKeysRef.current.left = false;
+        await stopManualMove();
+      }
+      if (e.key === "ArrowRight") {
+        pressedKeysRef.current.right = false;
+        await stopManualMove();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [scanMode, manualSpeed]);
 
   useEffect(() => {
     return () => {
@@ -1111,6 +1290,236 @@ export default function UploadPage() {
               {cameraError}
             </div>
           )}
+
+          {/* NEW SCAN PANEL */}
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-medium text-white">Slider Scan Control</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Choose Automatic for full scan capture, or Manual for live slider control.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setScanMode("auto")}
+                  className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+                    scanMode === "auto"
+                      ? "bg-cyan-400 text-slate-950"
+                      : "border border-white/10 bg-white/5 text-slate-200"
+                  }`}
+                >
+                  Automatic
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setScanMode("manual")}
+                  className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+                    scanMode === "manual"
+                      ? "bg-cyan-400 text-slate-950"
+                      : "border border-white/10 bg-white/5 text-slate-200"
+                  }`}
+                >
+                  Manual
+                </button>
+              </div>
+            </div>
+
+            {scanMode === "auto" && (
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-sm text-slate-300">Number of Images</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={scanNumImages}
+                    onChange={(e) => setScanNumImages(Number(e.target.value))}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm text-slate-300">Usable Slider Length (mm)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={scanSliderLength}
+                    onChange={(e) => setScanSliderLength(Number(e.target.value))}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm text-slate-300">Settle Time (s)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    value={scanSettleTime}
+                    onChange={(e) => setScanSettleTime(Number(e.target.value))}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </div>
+
+                <div className="md:col-span-3 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={startAutomaticScan}
+                    disabled={scanBusy || !!scanStatus?.running}
+                    className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {scanBusy ? "Starting..." : "Start Automatic Scan"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={stopAutomaticScan}
+                    className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
+                  >
+                    Stop Scan
+                  </button>
+                </div>
+
+                <div className="md:col-span-3 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
+                  Calculated step:{" "}
+                  <span className="font-semibold text-cyan-300">
+                    {scanNumImages > 1
+                      ? (scanSliderLength / (scanNumImages - 1)).toFixed(3)
+                      : "0.000"}{" "}
+                    mm
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {scanMode === "manual" && (
+              <div className="mt-6 space-y-5">
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-300">Manual Speed</span>
+                    <span className="text-cyan-300">{manualSpeed}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50}
+                    max={1000}
+                    step={10}
+                    value={manualSpeed}
+                    onChange={(e) => setManualSpeed(Number(e.target.value))}
+                    className="w-full accent-cyan-400"
+                  />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onMouseDown={() => startManualMove("left")}
+                    onMouseUp={stopManualMove}
+                    onMouseLeave={stopManualMove}
+                    onTouchStart={() => startManualMove("left")}
+                    onTouchEnd={stopManualMove}
+                    className="rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                  >
+                    ⬅️ Move Left
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={() => startManualMove("right")}
+                    onMouseUp={stopManualMove}
+                    onMouseLeave={stopManualMove}
+                    onTouchStart={() => startManualMove("right")}
+                    onTouchEnd={stopManualMove}
+                    className="rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                  >
+                    ➡️ Move Right
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={captureManualBackend}
+                  className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:scale-105"
+                >
+                  Capture Manual Image
+                </button>
+
+                <p className="text-sm text-slate-400">
+                  Keyboard control: use the left and right arrow keys.
+                </p>
+              </div>
+            )}
+
+            {scanStatus && (
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Mode</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{scanStatus.mode}</p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Status</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{scanStatus.status}</p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Position X</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {scanStatus.position_x != null ? scanStatus.position_x.toFixed(3) : "—"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Switch</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {scanStatus.switch_on ? "ON" : "OFF"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Progress</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {scanStatus.current_image} / {scanStatus.total_images}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {scanStatus && scanStatus.total_images > 0 && (
+              <div className="mt-4">
+                <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500 transition-all duration-500"
+                    style={{ width: `${scanStatus.progress_percent}%` }}
+                  />
+                </div>
+                <div className="mt-2 text-right text-xs text-slate-400">
+                  {scanStatus.progress_percent}%
+                </div>
+              </div>
+            )}
+
+            {scanStatus?.output_dir && (
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-300">
+                Output folder: <span className="text-cyan-300">{scanStatus.output_dir}</span>
+              </div>
+            )}
+
+            {scanError && (
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-300">
+                {scanError}
+              </div>
+            )}
+
+            {scanStatus?.error && (
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-300">
+                {scanStatus.error}
+              </div>
+            )}
+          </div>
 
           {files.length > 0 && (
             <div
