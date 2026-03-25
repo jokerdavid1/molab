@@ -740,12 +740,19 @@ export default function UploadPage() {
     if (scanStatus?.running && scanStatus?.mode === "auto") return;
 
     if (activeManualDirectionRef.current === direction && manualJogTimerRef.current) {
-      return;
-    }
-
-    clearManualLoop();
-    setScanError(null);
-    activeManualDirectionRef.current = direction;
+        return;
+      }
+      
+      if (
+        activeManualDirectionRef.current &&
+        activeManualDirectionRef.current !== direction
+      ) {
+        await stopManualMove();
+      }
+      
+      clearManualLoop();
+      setScanError(null);
+      activeManualDirectionRef.current = direction;
 
     try {
       await sendManualStep(direction);
@@ -1027,14 +1034,16 @@ export default function UploadPage() {
 
       if (e.key === "ArrowLeft") {
         e.preventDefault();
+        pressedKeysRef.current.right = false;
         if (!pressedKeysRef.current.left) {
           pressedKeysRef.current.left = true;
           await startManualMove("left");
         }
       }
-
+      
       if (e.key === "ArrowRight") {
         e.preventDefault();
+        pressedKeysRef.current.left = false;
         if (!pressedKeysRef.current.right) {
           pressedKeysRef.current.right = true;
           await startManualMove("right");
@@ -1737,7 +1746,25 @@ export default function UploadPage() {
                     ➡️ Move Right
                   </button>
                 </div>
-
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setScanError(null);
+                      const res = await fetch(`${LOCAL_API}/scan/home`, { method: "POST" });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) {
+                        throw new Error(data?.detail || data?.error || "Failed to home slider.");
+                      }
+                      await fetchScanStatus();
+                    } catch (err) {
+                      setScanError(err instanceof Error ? err.message : "Failed to home slider.");
+                    }
+                  }}
+                  className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
+                >
+                  Home Slider
+                </button>
                 <button
                   type="button"
                   onClick={captureManualBrowser}
