@@ -60,13 +60,14 @@ type PreviewFile = {
 };
 
 type ScanStatus = {
+  serial_connected?: boolean;
   running: boolean;
   mode: string;
   status: string;
   current_image: number;
   total_images: number;
   progress_percent: number;
-  output_dir: string | null;
+  output_dir?: string | null;
   error: string | null;
   step_mm: number | null;
   slider_length_mm: number;
@@ -74,6 +75,9 @@ type ScanStatus = {
   manual_speed: number | null;
   switch_on: boolean;
   position_x: number | null;
+  left_switch_on?: boolean;
+  right_switch_on?: boolean;
+  waiting_for_capture?: boolean;
 };
 
 const CLOUD_API = "https://api.molab.ca";
@@ -88,6 +92,8 @@ const PROCAMP_DEFS = [
   { key: "sharpness", label: "Sharpness", propValueIndex: 4 },
   { key: "gamma", label: "Gamma", propValueIndex: 5 },
 ];
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function UploadPage() {
   const [files, setFiles] = useState<PreviewFile[]>([]);
@@ -124,15 +130,15 @@ export default function UploadPage() {
     }))
   );
 
-  // NEW SCAN STATES
   const [scanMode, setScanMode] = useState<"auto" | "manual">("auto");
   const [scanNumImages, setScanNumImages] = useState(5);
-  const [scanSliderLength, setScanSliderLength] = useState(100);
+  const [scanSliderLength, setScanSliderLength] = useState(50);
   const [scanSettleTime, setScanSettleTime] = useState(2);
   const [manualSpeed, setManualSpeed] = useState(200);
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [autoRunning, setAutoRunning] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -143,6 +149,7 @@ export default function UploadPage() {
     left: false,
     right: false,
   });
+  const autoAbortRef = useRef(false);
 
   const estimatedSeconds = useMemo(
     () => files.length * SECONDS_PER_IMAGE,
@@ -207,6 +214,17 @@ export default function UploadPage() {
     if (inputRef.current) {
       inputRef.current.value = "";
     }
+  };
+
+  const addSingleCapturedFile = (file: File) => {
+    setFiles((prev) => [
+      ...prev,
+      {
+        file,
+        previewUrl: URL.createObjectURL(file),
+      },
+    ]);
+    resetAnalysisState();
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -605,7 +623,51 @@ export default function UploadPage() {
     }
   };
 
-  // NEW SCAN FUNCTIONS
+  const capturePhotoForAuto = async (index: number) => {
+    if (!videoRef.current || !canvasRef.current) {
+      throw new Error("Camera preview is not ready.");
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (!width || !height) {
+      throw new Error("Camera preview is not ready yet.");
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Could not capture image.");
+    }
+
+    ctx.drawImage(video, 0, 0, width, height);
+
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.95)
+    );
+
+    if (!blob) {
+      throw new Error("Could not create image file.");
+    }
+
+    const now = Date.now();
+    const file = new File(
+      [blob],
+      `auto_scan_${String(index).padStart(3, "0")}_${now}.jpg`,
+      {
+        type: "image/jpeg",
+        lastModified: now,
+      }
+    );
+
+    addSingleCapturedFile(file);
+  };
+
   const fetchScanStatus = async () => {
     try {
       const res = await fetch(`${LOCAL_API}/scan/status`, {
@@ -621,24 +683,22 @@ export default function UploadPage() {
   const startAutomaticScan = async () => {
     setScanBusy(true);
     setScanError(null);
+    setAutoRunning(true);
+    autoAbortRef.current = false;
 
     try {
-      // release browser camera so backend can use the microscope if needed
-      if (cameraOpen) {
-        stopCamera();
+      if (!cameraOpen) {
+        await openCamera();
+        await wait(1200);
       }
 
       const res = await fetch(`${LOCAL_API}/scan/auto/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          num_images: scanNumImages,
+          total_images: scanNumImages,
           slider_length_mm: scanSliderLength,
-          settle_time: scanSettleTime,
-          feed_rate: 200,
-          home_feed_rate: 400,
-          home_backoff_mm: 5,
-          return_home_after_scan: true,
+          speed: manualSpeed,
         }),
       });
 
@@ -648,15 +708,100 @@ export default function UploadPage() {
       }
 
       await fetchScanStatus();
+
+      for (let i = 1; i <= scanNumImages; i++) {
+        if (autoAbortRef.current) {
+          break;
+        }
+
+        let ready = false;
+
+        for (let tries = 0; tries < 300; tries++) {
+          const statusRes = await fetch(`${LOCAL_API}/scan/status`, {
+            method: "GET",
+            cache: "no-store",
+          });
+
+          if (!statusRes.ok) {
+            await wait(150);
+            continue;
+          }
+
+          const statusData = (await statusRes.json()) as ScanStatus;
+          setScanStatus(statusData);
+
+          if (statusData.error) {
+            throw new Error(statusData.error);
+          }
+
+          if (
+            statusData.waiting_for_capture &&
+            statusData.current_image === i &&
+            statusData.status === "waiting_for_capture"
+          ) {
+            ready = true;
+            break;
+          }
+
+          if (!statusData.running && statusData.status === "completed") {
+            ready = false;
+            break;
+          }
+
+          await wait(120);
+        }
+
+        if (!ready) {
+          throw new Error(`Backend was not ready for capture ${i}.`);
+        }
+
+        await wait(Math.max(0, scanSettleTime) * 1000);
+        await capturePhotoForAuto(i);
+
+        const capturedRes = await fetch(`${LOCAL_API}/scan/auto/captured`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            index: i,
+            filename: `auto_scan_${String(i).padStart(3, "0")}.jpg`,
+          }),
+        });
+
+        const capturedData = await capturedRes.json();
+
+        if (!capturedRes.ok) {
+          throw new Error(
+            capturedData?.detail ||
+              capturedData?.error ||
+              `Failed after capture ${i}.`
+          );
+        }
+
+        setScanStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                current_image: i,
+                progress_percent: (100 * i) / scanNumImages,
+              }
+            : prev
+        );
+
+        await wait(150);
+      }
+
+      await fetchScanStatus();
     } catch (err) {
       setScanError(err instanceof Error ? err.message : "Failed to start automatic scan.");
     } finally {
       setScanBusy(false);
+      setAutoRunning(false);
     }
   };
 
   const stopAutomaticScan = async () => {
     try {
+      autoAbortRef.current = true;
       await fetch(`${LOCAL_API}/scan/stop`, { method: "POST" });
       await fetchScanStatus();
     } catch {}
@@ -686,23 +831,16 @@ export default function UploadPage() {
     } catch {}
   };
 
-  const captureManualBackend = async () => {
+  const captureManualBrowser = async () => {
     try {
       setScanError(null);
 
-      if (cameraOpen) {
-        stopCamera();
+      if (!cameraOpen) {
+        await openCamera();
+        await wait(1000);
       }
 
-      const res = await fetch(`${LOCAL_API}/scan/manual/capture`, {
-        method: "POST",
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.detail || data?.error || "Failed to capture image.");
-      }
-
+      await capturePhoto();
       await fetchScanStatus();
     } catch (err) {
       setScanError(err instanceof Error ? err.message : "Failed to capture image.");
@@ -1291,7 +1429,6 @@ export default function UploadPage() {
             </div>
           )}
 
-          {/* NEW SCAN PANEL */}
           <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1368,7 +1505,7 @@ export default function UploadPage() {
                   <button
                     type="button"
                     onClick={startAutomaticScan}
-                    disabled={scanBusy || !!scanStatus?.running}
+                    disabled={scanBusy || !!scanStatus?.running || autoRunning}
                     className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {scanBusy ? "Starting..." : "Start Automatic Scan"}
@@ -1441,7 +1578,7 @@ export default function UploadPage() {
 
                 <button
                   type="button"
-                  onClick={captureManualBackend}
+                  onClick={captureManualBrowser}
                   className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:scale-105"
                 >
                   Capture Manual Image
@@ -1454,7 +1591,7 @@ export default function UploadPage() {
             )}
 
             {scanStatus && (
-              <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Mode</p>
                   <p className="mt-1 text-lg font-semibold text-white">{scanStatus.mode}</p>
@@ -1476,6 +1613,13 @@ export default function UploadPage() {
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Switch</p>
                   <p className="mt-1 text-lg font-semibold text-white">
                     {scanStatus.switch_on ? "ON" : "OFF"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Left / Right</p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {scanStatus.left_switch_on ? "LEFT" : scanStatus.right_switch_on ? "RIGHT" : "—"}
                   </p>
                 </div>
 
