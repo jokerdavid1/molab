@@ -80,7 +80,7 @@ type SliderStatus = {
 };
 
 const CLOUD_API = "https://api.molab.ca";
-const LOCAL_API = "http://127.0.0.1:8000";
+const LOCAL_API = "http://127.0.0.1:8001";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
 
