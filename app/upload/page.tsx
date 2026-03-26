@@ -84,10 +84,6 @@ const LOCAL_API = "http://127.0.0.1:8001";
 const BATCH_SIZE = 8;
 const SECONDS_PER_IMAGE = 10;
 
-const AUTO_SCAN_COUNT = 10;
-const AUTO_SCAN_STEP_MM = 2;
-const AUTO_SCAN_WAIT_MS = 2000;
-
 const PROCAMP_DEFS = [
   { key: "brightness", label: "Brightness", propValueIndex: 0 },
   { key: "contrast", label: "Contrast", propValueIndex: 1 },
@@ -134,9 +130,11 @@ export default function UploadPage() {
   const [sliderStatus, setSliderStatus] = useState<SliderStatus | null>(null);
   const [sliderBusy, setSliderBusy] = useState(false);
   const [sliderError, setSliderError] = useState<string | null>(null);
-
   const [autoScanRunning, setAutoScanRunning] = useState(false);
   const [autoScanStatus, setAutoScanStatus] = useState<string | null>(null);
+  const [autoScanCount, setAutoScanCount] = useState(10);
+  const [autoScanStepMm, setAutoScanStepMm] = useState(2);
+  const [autoScanWaitMs, setAutoScanWaitMs] = useState(2000);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -494,8 +492,6 @@ export default function UploadPage() {
   };
 
   const handleSliderPress = (direction: "left" | "right") => {
-    if (autoScanRunning) return;
-
     holdTriggeredRef.current = null;
 
     if (holdTimeoutRef.current) {
@@ -513,8 +509,6 @@ export default function UploadPage() {
   };
 
   const handleSliderRelease = async (direction: "left" | "right") => {
-    if (autoScanRunning) return;
-
     if (holdTimeoutRef.current) {
       clearTimeout(holdTimeoutRef.current);
       holdTimeoutRef.current = null;
@@ -730,7 +724,7 @@ export default function UploadPage() {
     }
   };
 
-  const runAutomaticMode = async () => {
+  const runAutomaticScan = async () => {
     if (autoScanRunning) return;
 
     if (!cameraOpen || !videoRef.current) {
@@ -743,36 +737,35 @@ export default function UploadPage() {
       return;
     }
 
-    setAutoScanRunning(True as unknown as boolean);
-    setAutoScanStatus("Going home...");
     setSliderError(null);
-    setCameraError(null);
+    setAutoScanRunning(true);
+    setAutoScanStatus("Going home...");
 
     try {
       await sliderHome();
       await sleep(1200);
 
-      for (let i = 0; i < AUTO_SCAN_COUNT; i++) {
-        setAutoScanStatus(`Moving ${i + 1} of ${AUTO_SCAN_COUNT}...`);
-        await sliderMoveRightBy(AUTO_SCAN_STEP_MM);
+      for (let i = 0; i < autoScanCount; i++) {
+        setAutoScanStatus(`Moving to position ${i + 1} of ${autoScanCount}...`);
+        await sliderMoveRightBy(autoScanStepMm);
 
-        setAutoScanStatus(`Waiting before capture ${i + 1} of ${AUTO_SCAN_COUNT}...`);
-        await sleep(AUTO_SCAN_WAIT_MS);
+        setAutoScanStatus(
+          `Waiting before capture ${i + 1} of ${autoScanCount}...`
+        );
+        await sleep(autoScanWaitMs);
 
-        setAutoScanStatus(`Capturing ${i + 1} of ${AUTO_SCAN_COUNT}...`);
+        setAutoScanStatus(`Capturing image ${i + 1} of ${autoScanCount}...`);
         await capturePhoto();
 
         await sleep(300);
       }
 
-      setAutoScanStatus("Automatic mode completed.");
+      setAutoScanStatus("Automatic scan completed.");
     } catch (err) {
-      setAutoScanStatus("Automatic mode failed.");
-      if (err instanceof Error) {
-        setSliderError(err.message);
-      } else {
-        setSliderError("Automatic mode failed.");
-      }
+      setAutoScanStatus("Automatic scan failed.");
+      setSliderError(
+        err instanceof Error ? err.message : "Automatic scan failed."
+      );
     } finally {
       setAutoScanRunning(false);
     }
@@ -851,8 +844,8 @@ export default function UploadPage() {
       }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
       }
+      files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
   }, []);
 
@@ -1384,7 +1377,7 @@ export default function UploadPage() {
                           <button
                             type="button"
                             onClick={sliderStop}
-                            disabled={sliderBusy}
+                            disabled={sliderBusy || autoScanRunning}
                             className="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/20 disabled:opacity-60"
                           >
                             Stop
@@ -1436,29 +1429,89 @@ export default function UploadPage() {
                             Automatic Mode
                           </h4>
 
-                          <div className="mt-4 space-y-3">
-                            <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-400">
-                              <div className="flex items-center justify-between">
-                                <span>Pictures</span>
-                                <span className="text-slate-200">{AUTO_SCAN_COUNT}</span>
+                          <div className="mt-4 space-y-4">
+                            <div>
+                              <div className="mb-2 flex items-center justify-between text-sm">
+                                <span className="text-slate-300">
+                                  Number of pictures
+                                </span>
+                                <span className="text-cyan-300">
+                                  {autoScanCount}
+                                </span>
                               </div>
-                              <div className="mt-2 flex items-center justify-between">
-                                <span>Step</span>
-                                <span className="text-slate-200">{AUTO_SCAN_STEP_MM} mm</span>
+                              <input
+                                type="range"
+                                min={1}
+                                max={50}
+                                step={1}
+                                value={autoScanCount}
+                                onChange={(e) =>
+                                  setAutoScanCount(Number(e.target.value))
+                                }
+                                disabled={autoScanRunning}
+                                className="w-full accent-cyan-400"
+                              />
+                            </div>
+
+                            <div>
+                              <div className="mb-2 flex items-center justify-between text-sm">
+                                <span className="text-slate-300">
+                                  Step size (mm)
+                                </span>
+                                <span className="text-cyan-300">
+                                  {autoScanStepMm}
+                                </span>
                               </div>
-                              <div className="mt-2 flex items-center justify-between">
-                                <span>Wait before capture</span>
-                                <span className="text-slate-200">{AUTO_SCAN_WAIT_MS / 1000} s</span>
+                              <input
+                                type="range"
+                                min={1}
+                                max={10}
+                                step={1}
+                                value={autoScanStepMm}
+                                onChange={(e) =>
+                                  setAutoScanStepMm(Number(e.target.value))
+                                }
+                                disabled={autoScanRunning}
+                                className="w-full accent-cyan-400"
+                              />
+                            </div>
+
+                            <div>
+                              <div className="mb-2 flex items-center justify-between text-sm">
+                                <span className="text-slate-300">
+                                  Wait before capture (seconds)
+                                </span>
+                                <span className="text-cyan-300">
+                                  {(autoScanWaitMs / 1000).toFixed(1)}
+                                </span>
                               </div>
+                              <input
+                                type="range"
+                                min={0.5}
+                                max={5}
+                                step={0.5}
+                                value={autoScanWaitMs / 1000}
+                                onChange={(e) =>
+                                  setAutoScanWaitMs(Number(e.target.value) * 1000)
+                                }
+                                disabled={autoScanRunning}
+                                className="w-full accent-cyan-400"
+                              />
                             </div>
 
                             <button
                               type="button"
-                              onClick={runAutomaticMode}
-                              disabled={autoScanRunning || sliderBusy || !cameraOpen || !sliderStatus?.connected}
+                              onClick={runAutomaticScan}
+                              disabled={
+                                autoScanRunning ||
+                                !cameraOpen ||
+                                !sliderStatus?.connected
+                              }
                               className="w-full rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
                             >
-                              {autoScanRunning ? "Running Automatic Mode..." : "Start Automatic Mode"}
+                              {autoScanRunning
+                                ? "Running Automatic Mode..."
+                                : "Start Automatic Mode"}
                             </button>
 
                             {autoScanStatus && (
@@ -1468,7 +1521,10 @@ export default function UploadPage() {
                             )}
 
                             <p className="text-xs text-slate-500">
-                              Automatic mode: go home, move right 2 mm, wait 2 seconds, capture, and repeat for 10 images.
+                              Automatic mode: go home, move right by{" "}
+                              {autoScanStepMm} mm each step, wait{" "}
+                              {(autoScanWaitMs / 1000).toFixed(1)} s, then
+                              capture from the browser microscope view.
                             </p>
                           </div>
                         </div>
