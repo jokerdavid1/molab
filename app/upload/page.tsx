@@ -556,11 +556,9 @@ export default function UploadPage() {
     setAutoScanStatus("Going home...");
   
     try {
-      // go home first
       await sliderHome();
       await sleep(1200);
   
-      // capture images
       for (let i = 0; i < autoScanCount; i++) {
         setAutoScanStatus(`Moving to position ${i + 1} of ${autoScanCount}...`);
         await sliderMoveRightBy(autoScanStepMm);
@@ -574,30 +572,26 @@ export default function UploadPage() {
         await sleep(300);
       }
   
-      // return home after all captures
       setAutoScanStatus("Returning home...");
       await sliderHome();
       await sleep(1200);
   
-      // let React finish updating files
       setAutoScanStatus("Preparing analysis...");
       await sleep(500);
   
-      // start analysis automatically
       setAutoScanStatus("Starting analysis...");
       await startAnalysis();
   
       setAutoScanStatus("Automatic scan completed. Analysis started.");
     } catch (err) {
-      setAutoScanStatus("Automatic mode failed.");
+      setAutoScanStatus("Automatic scan failed.");
       setSliderError(
-        err instanceof Error ? err.message : "Automatic mode failed."
+        err instanceof Error ? err.message : "Automatic scan failed."
       );
     } finally {
       setAutoScanRunning(false);
     }
   };
-
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
