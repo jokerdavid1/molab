@@ -257,6 +257,17 @@ export default function UploadPage() {
     resetAnalysisState();
   };
 
+  const clearSelectedFiles = () => {
+    setFiles((prev) => {
+      prev.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      return [];
+    });
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  };
+
   const chunkFiles = (inputFiles: PreviewFile[], chunkSize: number) => {
     const chunks: PreviewFile[][] = [];
     for (let i = 0; i < inputFiles.length; i += chunkSize) {
@@ -827,6 +838,7 @@ export default function UploadPage() {
           setIsLoading(false);
           setStatusPollEnabled(false);
           clearInterval(interval);
+          clearSelectedFiles();
         }
 
         if (data.status === "failed") {
