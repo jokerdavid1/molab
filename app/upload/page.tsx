@@ -1101,7 +1101,7 @@ export default function UploadPage() {
                 </div>
               )}
 
-              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
                 <div className="min-w-0">
                   <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
                     <video
@@ -1424,12 +1424,6 @@ export default function UploadPage() {
                               {sliderStatus?.switch_on ? "On" : "Off"}
                             </span>
                           </div>
-
-                          {sliderStatus?.last_status && (
-                            <div className="mt-2 break-all text-[10px] text-slate-500">
-                              {sliderStatus.last_status}
-                            </div>
-                          )}
                         </div>
 
                         <p className="text-[11px] text-slate-500">
@@ -1501,10 +1495,6 @@ export default function UploadPage() {
                           {autoScanStatus}
                         </div>
                       )}
-
-                      <p className="mt-2 text-[11px] text-slate-500">
-                        Auto: home, move {autoScanStepMm} mm, wait {(autoScanWaitMs / 1000).toFixed(1)} s, capture, return home, then start analysis.
-                      </p>
                     </div>
 
                     {sliderError && (
