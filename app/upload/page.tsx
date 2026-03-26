@@ -1101,7 +1101,7 @@ export default function UploadPage() {
                 </div>
               )}
 
-              <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
                 <div className="min-w-0">
                   <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
                     <video
@@ -1137,14 +1137,14 @@ export default function UploadPage() {
                 </div>
 
                 <div className="min-w-0">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-base font-medium text-white">
+                  <div className="max-h-[420px] overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.04] p-3 pr-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-white">
                         Live Controls
                       </h3>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] uppercase tracking-wide ${
+                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
                             microscopeApiLabel === "local"
                               ? "bg-emerald-400/15 text-emerald-300"
                               : "bg-amber-400/15 text-amber-300"
@@ -1153,17 +1153,17 @@ export default function UploadPage() {
                           {microscopeApiLabel === "local" ? "Local" : "Cloud"}
                         </span>
                         {microscopeBusy && (
-                          <span className="text-xs text-cyan-300">Updating...</span>
+                          <span className="text-[11px] text-cyan-300">Updating...</span>
                         )}
                       </div>
                     </div>
 
-                    <div className="mt-4">
+                    <div className="mt-3">
                       <button
                         type="button"
                         onClick={() => setLed(!(microscopeStatus?.led_on ?? true))}
                         disabled={microscopeBusy}
-                        className={`w-full rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                        className={`w-full rounded-lg border px-3 py-2 text-xs font-medium transition ${
                           microscopeStatus?.led_on
                             ? "border-cyan-300/30 bg-cyan-400/20 text-cyan-200"
                             : "border-white/10 bg-white/5 text-slate-300"
@@ -1173,9 +1173,9 @@ export default function UploadPage() {
                       </button>
                     </div>
 
-                    <div className="mt-5 space-y-5">
+                    <div className="mt-3 space-y-3">
                       <div>
-                        <div className="mb-2 flex items-center justify-between text-sm">
+                        <div className="mb-1 flex items-center justify-between text-xs">
                           <span className="text-slate-300">Light level</span>
                           <span className="text-cyan-300">
                             {microscopeStatus?.light_level ?? 6}
@@ -1207,7 +1207,7 @@ export default function UploadPage() {
                       </div>
 
                       <div>
-                        <div className="mb-2 flex items-center justify-between text-sm">
+                        <div className="mb-1 flex items-center justify-between text-xs">
                           <span className="text-slate-300">Exposure</span>
                           <span className="text-cyan-300">
                             {microscopeStatus?.exposure_value ?? 1}
@@ -1240,15 +1240,15 @@ export default function UploadPage() {
                     </div>
 
                     {microscopeStatus && (
-                      <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-400">
-                        <div className="flex items-center justify-between">
-                          <span>SDK device</span>
-                          <span className="text-slate-200">
+                      <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-2.5 text-[11px] text-slate-400">
+                        <div className="flex items-center justify-between gap-3">
+                          <span>SDK</span>
+                          <span className="truncate text-slate-200">
                             {microscopeStatus.device_name || "Unknown"}
                           </span>
                         </div>
-                        <div className="mt-2 flex items-center justify-between">
-                          <span>Devices found</span>
+                        <div className="mt-1 flex items-center justify-between">
+                          <span>Devices</span>
                           <span className="text-slate-200">
                             {microscopeStatus.device_count ?? 0}
                           </span>
@@ -1257,12 +1257,12 @@ export default function UploadPage() {
                     )}
 
                     {supportedProcAmpControls.length > 0 && (
-                      <div className="mt-5 border-t border-white/10 pt-5">
-                        <h4 className="text-sm font-medium text-white">
+                      <div className="mt-3 border-t border-white/10 pt-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-white/90">
                           Image Properties
                         </h4>
 
-                        <div className="mt-4 space-y-5">
+                        <div className="mt-3 space-y-3">
                           {supportedProcAmpControls.map((control) => {
                             const min = control.range?.min ?? 0;
                             const max = control.range?.max ?? 100;
@@ -1273,7 +1273,7 @@ export default function UploadPage() {
 
                             return (
                               <div key={control.key}>
-                                <div className="mb-2 flex items-center justify-between text-sm">
+                                <div className="mb-1 flex items-center justify-between text-xs">
                                   <span className="text-slate-300">{control.label}</span>
                                   <span className="text-cyan-300">{control.value}</span>
                                 </div>
@@ -1322,32 +1322,43 @@ export default function UploadPage() {
                     )}
 
                     {supportedProcAmpControls.length === 0 && (
-                      <div className="mt-5 rounded-xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm text-amber-200">
+                      <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-500/10 p-2.5 text-xs text-amber-200">
                         This camera did not expose extra image-property sliders through the SDK.
                       </div>
                     )}
 
-                    <div className="mt-5 border-t border-white/10 pt-5">
-                      <div className="flex items-center justify-between gap-3">
-                        <h4 className="text-sm font-medium text-white">
+                    <div className="mt-3 border-t border-white/10 pt-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-white/90">
                           Slider Control
                         </h4>
                         {sliderBusy && (
-                          <span className="text-xs text-cyan-300">Working...</span>
+                          <span className="text-[11px] text-cyan-300">Working...</span>
                         )}
                       </div>
 
-                      <div className="mt-4 space-y-3">
-                        <button
-                          type="button"
-                          onClick={sliderConnect}
-                          disabled={sliderBusy || autoScanRunning}
-                          className="w-full rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
-                        >
-                          Connect Slider
-                        </button>
+                      <div className="mt-3 space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={sliderConnect}
+                            disabled={sliderBusy || autoScanRunning}
+                            className="rounded-lg border border-cyan-300/30 bg-cyan-400/20 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
+                          >
+                            Connect
+                          </button>
 
-                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={sliderHome}
+                            disabled={sliderBusy || autoScanRunning}
+                            className="rounded-lg border border-cyan-300/30 bg-cyan-400/20 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
+                          >
+                            Home
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
                             disabled={sliderBusy || autoScanRunning}
@@ -1364,9 +1375,9 @@ export default function UploadPage() {
                             }}
                             onTouchStart={() => handleSliderPress("left")}
                             onTouchEnd={() => handleSliderRelease("left")}
-                            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
                           >
-                            ◀ LEFT
+                            ◀ Left
                           </button>
 
                           <button
@@ -1385,155 +1396,122 @@ export default function UploadPage() {
                             }}
                             onTouchStart={() => handleSliderPress("right")}
                             onTouchEnd={() => handleSliderRelease("right")}
-                            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
                           >
-                            RIGHT ▶
+                            Right ▶
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <button
-                            type="button"
-                            onClick={sliderHome}
-                            disabled={sliderBusy || autoScanRunning}
-                            className="rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
-                          >
-                            Home
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={sliderStop}
-                            disabled={sliderBusy}
-                            className="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/20 disabled:opacity-60"
-                          >
-                            Stop
-                          </button>
-                        </div>
-
-                        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-400">
-                          <div className="flex items-center justify-between">
+                        <div className="rounded-lg border border-white/10 bg-black/20 p-2.5 text-[11px] text-slate-400">
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                             <span>Connected</span>
-                            <span className="text-slate-200">
+                            <span className="text-right text-slate-200">
                               {sliderStatus?.connected ? "Yes" : "No"}
                             </span>
-                          </div>
 
-                          <div className="mt-2 flex items-center justify-between">
                             <span>Port</span>
-                            <span className="text-slate-200">
+                            <span className="text-right text-slate-200">
                               {sliderStatus?.port ?? "COM3"}
                             </span>
-                          </div>
 
-                          <div className="mt-2 flex items-center justify-between">
-                            <span>Active limit</span>
-                            <span className="text-slate-200">
+                            <span>Limit</span>
+                            <span className="text-right text-slate-200">
                               {sliderStatus?.active_limit_side ?? "None"}
                             </span>
-                          </div>
 
-                          <div className="mt-2 flex items-center justify-between">
                             <span>Switch</span>
-                            <span className="text-slate-200">
+                            <span className="text-right text-slate-200">
                               {sliderStatus?.switch_on ? "On" : "Off"}
                             </span>
                           </div>
 
                           {sliderStatus?.last_status && (
-                            <div className="mt-2 break-all text-[11px] text-slate-500">
+                            <div className="mt-2 break-all text-[10px] text-slate-500">
                               {sliderStatus.last_status}
                             </div>
                           )}
                         </div>
 
-                        <p className="text-xs text-slate-500">
-                          Tap button = 1 mm increment. Hold button = continuous motion.
+                        <p className="text-[11px] text-slate-500">
+                          Tap = 1 mm increment. Hold = continuous motion.
                         </p>
-
-                        <div className="mt-5 border-t border-white/10 pt-5">
-                          <h4 className="text-sm font-medium text-white">Automatic Mode</h4>
-
-                          <div className="mt-4 space-y-4">
-                            <div>
-                              <div className="mb-2 flex items-center justify-between text-sm">
-                                <span className="text-slate-300">Number of pictures</span>
-                                <span className="text-cyan-300">{autoScanCount}</span>
-                              </div>
-                              <input
-                                type="range"
-                                min={1}
-                                max={50}
-                                step={1}
-                                value={autoScanCount}
-                                onChange={(e) => setAutoScanCount(Number(e.target.value))}
-                                disabled={autoScanRunning}
-                                className="w-full accent-cyan-400"
-                              />
-                            </div>
-
-                            <div>
-                              <div className="mb-2 flex items-center justify-between text-sm">
-                                <span className="text-slate-300">Step size (mm)</span>
-                                <span className="text-cyan-300">{autoScanStepMm}</span>
-                              </div>
-                              <input
-                                type="range"
-                                min={1}
-                                max={10}
-                                step={1}
-                                value={autoScanStepMm}
-                                onChange={(e) => setAutoScanStepMm(Number(e.target.value))}
-                                disabled={autoScanRunning}
-                                className="w-full accent-cyan-400"
-                              />
-                            </div>
-
-                            <div>
-                              <div className="mb-2 flex items-center justify-between text-sm">
-                                <span className="text-slate-300">Wait before capture (seconds)</span>
-                                <span className="text-cyan-300">{(autoScanWaitMs / 1000).toFixed(1)}</span>
-                              </div>
-                              <input
-                                type="range"
-                                min={0.5}
-                                max={5}
-                                step={0.5}
-                                value={autoScanWaitMs / 1000}
-                                onChange={(e) => setAutoScanWaitMs(Number(e.target.value) * 1000)}
-                                disabled={autoScanRunning}
-                                className="w-full accent-cyan-400"
-                              />
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={runAutomaticScan}
-                              disabled={autoScanRunning || isLoading || !cameraOpen || !sliderStatus?.connected}
-                              className="w-full rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
-                            >
-                              {autoScanRunning ? "Running Automatic Mode..." : "Start Automatic Mode"}
-                            </button>
-
-                            {autoScanStatus && (
-                              <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-300">
-                                {autoScanStatus}
-                              </div>
-                            )}
-
-                            <p className="text-xs text-slate-500">
-                              Automatic mode: go home, move right by {autoScanStepMm} mm each step, wait {(autoScanWaitMs / 1000).toFixed(1)} s, capture from the browser microscope view, return home, then start analysis automatically.
-                            </p>
-                          </div>
-                        </div>
-
-                        {sliderError && (
-                          <div className="rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-300">
-                            {sliderError}
-                          </div>
-                        )}
                       </div>
                     </div>
+
+                    <div className="mt-3 border-t border-white/10 pt-3">
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-white/90">
+                        Automatic Mode
+                      </h4>
+
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <label className="rounded-lg border border-white/10 bg-black/20 p-2 text-[11px] text-slate-300">
+                          <span className="block">Pics</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={50}
+                            step={1}
+                            value={autoScanCount}
+                            onChange={(e) => setAutoScanCount(Number(e.target.value))}
+                            disabled={autoScanRunning}
+                            className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none"
+                          />
+                        </label>
+
+                        <label className="rounded-lg border border-white/10 bg-black/20 p-2 text-[11px] text-slate-300">
+                          <span className="block">Step mm</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={autoScanStepMm}
+                            onChange={(e) => setAutoScanStepMm(Number(e.target.value))}
+                            disabled={autoScanRunning}
+                            className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none"
+                          />
+                        </label>
+
+                        <label className="rounded-lg border border-white/10 bg-black/20 p-2 text-[11px] text-slate-300">
+                          <span className="block">Wait s</span>
+                          <input
+                            type="number"
+                            min={0.5}
+                            max={5}
+                            step={0.5}
+                            value={autoScanWaitMs / 1000}
+                            onChange={(e) => setAutoScanWaitMs(Number(e.target.value) * 1000)}
+                            disabled={autoScanRunning}
+                            className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none"
+                          />
+                        </label>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={runAutomaticScan}
+                        disabled={autoScanRunning || isLoading || !cameraOpen || !sliderStatus?.connected}
+                        className="mt-3 w-full rounded-lg border border-cyan-300/30 bg-cyan-400/20 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
+                      >
+                        {autoScanRunning ? "Running Automatic Mode..." : "Start Automatic Mode"}
+                      </button>
+
+                      {autoScanStatus && (
+                        <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-2.5 text-xs text-slate-300">
+                          {autoScanStatus}
+                        </div>
+                      )}
+
+                      <p className="mt-2 text-[11px] text-slate-500">
+                        Auto: home, move {autoScanStepMm} mm, wait {(autoScanWaitMs / 1000).toFixed(1)} s, capture, return home, then start analysis.
+                      </p>
+                    </div>
+
+                    {sliderError && (
+                      <div className="mt-3 rounded-lg border border-red-400/20 bg-red-500/10 p-2.5 text-xs text-red-300">
+                        {sliderError}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
