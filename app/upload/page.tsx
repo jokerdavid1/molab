@@ -541,51 +541,57 @@ export default function UploadPage() {
 
   const runAutomaticScan = async () => {
     if (autoScanRunning || isLoading) return;
-
+  
     if (!cameraOpen || !videoRef.current) {
       setCameraError("Open the microscope/camera first.");
       return;
     }
-
+  
     if (!sliderStatus?.connected) {
       setSliderError("Connect the slider first.");
       return;
     }
-
+  
     setAutoScanRunning(true);
     setAutoScanStatus("Going home...");
-
+  
     try {
+      // go home first
       await sliderHome();
       await sleep(1200);
-
-      for (let i = 0; i < autoScanCount; i += 1) {
+  
+      // capture images
+      for (let i = 0; i < autoScanCount; i++) {
         setAutoScanStatus(`Moving to position ${i + 1} of ${autoScanCount}...`);
         await sliderMoveRightBy(autoScanStepMm);
-
+  
         setAutoScanStatus(`Waiting before capture ${i + 1} of ${autoScanCount}...`);
         await sleep(autoScanWaitMs);
-
+  
         setAutoScanStatus(`Capturing image ${i + 1} of ${autoScanCount}...`);
         await capturePhoto();
+  
         await sleep(300);
       }
-
+  
+      // return home after all captures
       setAutoScanStatus("Returning home...");
       await sliderHome();
       await sleep(1200);
-
+  
+      // let React finish updating files
       setAutoScanStatus("Preparing analysis...");
       await sleep(500);
-
+  
+      // start analysis automatically
       setAutoScanStatus("Starting analysis...");
       await startAnalysis();
-
+  
       setAutoScanStatus("Automatic scan completed. Analysis started.");
     } catch (err) {
-      setAutoScanStatus("Automatic scan failed.");
+      setAutoScanStatus("Automatic mode failed.");
       setSliderError(
-        err instanceof Error ? err.message : "Automatic scan failed."
+        err instanceof Error ? err.message : "Automatic mode failed."
       );
     } finally {
       setAutoScanRunning(false);
