@@ -1101,7 +1101,7 @@ export default function UploadPage() {
                 </div>
               )}
 
-              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-stretch">
+              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
                 <div className="min-w-0">
                   <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
                     <video
@@ -1109,35 +1109,13 @@ export default function UploadPage() {
                       autoPlay
                       playsInline
                       muted
-                      className="block min-h-[420px] w-full object-contain bg-black"
+                      className="block h-[620px] w-full object-contain bg-black"
                     />
                   </div>
-
-                  <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                    <button
-                      type="button"
-                      onClick={capturePhoto}
-                      className="rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
-                    >
-                      Capture Photo
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={stopCamera}
-                      className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-slate-200 transition hover:scale-105 hover:bg-white/10"
-                    >
-                      Done Capturing
-                    </button>
-                  </div>
-
-                  <p className="mt-3 text-center text-sm text-slate-400">
-                    Each captured image is automatically added to your selected files below.
-                  </p>
                 </div>
 
                 <div className="min-w-0">
-                  <div className="h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.04] p-3 pr-2">
+                  <div className="h-[620px] overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.04] p-3 pr-2">
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="text-sm font-semibold text-white">
                         Live Controls
@@ -1485,6 +1463,34 @@ export default function UploadPage() {
                           {autoScanStatus}
                         </div>
                       )}
+                    </div>
+
+
+
+                    <div className="mt-3 border-t border-white/10 pt-3">
+                      <div className="grid grid-cols-1 gap-2">
+                        <button
+                          type="button"
+                          onClick={capturePhoto}
+                          disabled={!cameraOpen || autoScanRunning || isLoading}
+                          className="rounded-lg bg-cyan-400 px-3 py-2 text-xs font-semibold text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.28)] transition hover:scale-[1.01] disabled:opacity-60"
+                        >
+                          Capture Photo
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={stopCamera}
+                          disabled={autoScanRunning}
+                          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                        >
+                          Done Capturing
+                        </button>
+                      </div>
+
+                      <p className="mt-3 text-[11px] text-slate-400">
+                        Each captured image is automatically added to your selected files below.
+                      </p>
                     </div>
 
                     {sliderError && (
