@@ -1101,7 +1101,7 @@ export default function UploadPage() {
                 </div>
               )}
 
-              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
+              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-stretch">
                 <div className="min-w-0">
                   <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
                     <video
@@ -1137,7 +1137,7 @@ export default function UploadPage() {
                 </div>
 
                 <div className="min-w-0">
-                  <div className="max-h-[420px] overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.04] p-3 pr-2">
+                  <div className="h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.04] p-3 pr-2">
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="text-sm font-semibold text-white">
                         Live Controls
@@ -1412,16 +1412,6 @@ export default function UploadPage() {
                             <span>Port</span>
                             <span className="text-right text-slate-200">
                               {sliderStatus?.port ?? "COM3"}
-                            </span>
-
-                            <span>Limit</span>
-                            <span className="text-right text-slate-200">
-                              {sliderStatus?.active_limit_side ?? "None"}
-                            </span>
-
-                            <span>Switch</span>
-                            <span className="text-right text-slate-200">
-                              {sliderStatus?.switch_on ? "On" : "Off"}
                             </span>
                           </div>
                         </div>
