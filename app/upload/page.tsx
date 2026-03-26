@@ -529,7 +529,7 @@ export default function UploadPage() {
   };
 
   const runAutomaticScan = async () => {
-    if (autoScanRunning) return;
+    if (autoScanRunning || isLoading) return;
 
     if (!cameraOpen || !videoRef.current) {
       setCameraError("Open the microscope/camera first.");
@@ -560,7 +560,17 @@ export default function UploadPage() {
         await sleep(300);
       }
 
-      setAutoScanStatus("Automatic scan completed.");
+      setAutoScanStatus("Returning home...");
+      await sliderHome();
+      await sleep(1200);
+
+      setAutoScanStatus("Preparing analysis...");
+      await sleep(500);
+
+      setAutoScanStatus("Starting analysis...");
+      await startAnalysis();
+
+      setAutoScanStatus("Automatic scan completed. Analysis started.");
     } catch (err) {
       setAutoScanStatus("Automatic scan failed.");
       setSliderError(
@@ -1479,7 +1489,7 @@ export default function UploadPage() {
                             <button
                               type="button"
                               onClick={runAutomaticScan}
-                              disabled={autoScanRunning || !cameraOpen || !sliderStatus?.connected}
+                              disabled={autoScanRunning || isLoading || !cameraOpen || !sliderStatus?.connected}
                               className="w-full rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
                             >
                               {autoScanRunning ? "Running Automatic Mode..." : "Start Automatic Mode"}
@@ -1492,7 +1502,7 @@ export default function UploadPage() {
                             )}
 
                             <p className="text-xs text-slate-500">
-                              Automatic mode: go home, move right by {autoScanStepMm} mm each step, wait {(autoScanWaitMs / 1000).toFixed(1)} s, then capture from the browser microscope view.
+                              Automatic mode: go home, move right by {autoScanStepMm} mm each step, wait {(autoScanWaitMs / 1000).toFixed(1)} s, capture from the browser microscope view, return home, then start analysis automatically.
                             </p>
                           </div>
                         </div>
