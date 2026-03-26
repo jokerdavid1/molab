@@ -788,7 +788,7 @@ export default function UploadPage() {
       }
       files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
-  }, [files]);
+  }, []);
 
   const startAnalysis = async () => {
     if (files.length === 0) {
