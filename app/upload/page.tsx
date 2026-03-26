@@ -138,6 +138,7 @@ export default function UploadPage() {
   const [autoScanWaitMs, setAutoScanWaitMs] = useState(2000);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const filesRef = useRef<PreviewFile[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -203,7 +204,9 @@ export default function UploadPage() {
           previewUrl: URL.createObjectURL(file),
         }));
 
-      return [...prev, ...newItems];
+      const updated = [...prev, ...newItems];
+      filesRef.current = updated;
+      return updated;
     });
 
     resetAnalysisState();
@@ -252,7 +255,9 @@ export default function UploadPage() {
     setFiles((prev) => {
       const removed = prev[indexToRemove];
       if (removed) URL.revokeObjectURL(removed.previewUrl);
-      return prev.filter((_, index) => index !== indexToRemove);
+      const updated = prev.filter((_, index) => index !== indexToRemove);
+      filesRef.current = updated;
+      return updated;
     });
     resetAnalysisState();
   };
@@ -260,6 +265,7 @@ export default function UploadPage() {
   const clearSelectedFiles = () => {
     setFiles((prev) => {
       prev.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      filesRef.current = [];
       return [];
     });
 
@@ -541,47 +547,46 @@ export default function UploadPage() {
 
   const runAutomaticScan = async () => {
     if (autoScanRunning || isLoading) return;
-  
+
     if (!cameraOpen || !videoRef.current) {
       setCameraError("Open the microscope/camera first.");
       return;
     }
-  
+
     if (!sliderStatus?.connected) {
       setSliderError("Connect the slider first.");
       return;
     }
-  
+
     setAutoScanRunning(true);
     setAutoScanStatus("Going home...");
-  
+
     try {
       await sliderHome();
       await sleep(1200);
-  
-      for (let i = 0; i < autoScanCount; i++) {
+
+      for (let i = 0; i < autoScanCount; i += 1) {
         setAutoScanStatus(`Moving to position ${i + 1} of ${autoScanCount}...`);
         await sliderMoveRightBy(autoScanStepMm);
-  
+
         setAutoScanStatus(`Waiting before capture ${i + 1} of ${autoScanCount}...`);
         await sleep(autoScanWaitMs);
-  
+
         setAutoScanStatus(`Capturing image ${i + 1} of ${autoScanCount}...`);
         await capturePhoto();
-  
         await sleep(300);
       }
-  
+
       setAutoScanStatus("Returning home...");
       await sliderHome();
       await sleep(1200);
-  
+
       setAutoScanStatus("Preparing analysis...");
       await sleep(500);
-  
+
       setAutoScanStatus("Starting analysis...");
       await startAnalysis();
-  
+
       setAutoScanStatus("Automatic scan completed. Analysis started.");
     } catch (err) {
       setAutoScanStatus("Automatic scan failed.");
@@ -592,6 +597,7 @@ export default function UploadPage() {
       setAutoScanRunning(false);
     }
   };
+
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -869,7 +875,9 @@ export default function UploadPage() {
   }, []);
 
   const startAnalysis = async () => {
-    if (files.length === 0) {
+    const currentFiles = filesRef.current;
+
+    if (currentFiles.length === 0) {
       setError("Please select at least one image.");
       return;
     }
@@ -899,7 +907,7 @@ export default function UploadPage() {
       const newJobId = startData.job_id as string;
       setJobId(newJobId);
 
-      const fileChunks = chunkFiles(files, BATCH_SIZE);
+      const fileChunks = chunkFiles(currentFiles, BATCH_SIZE);
       setTotalBatches(fileChunks.length);
 
       for (let i = 0; i < fileChunks.length; i++) {
@@ -944,7 +952,7 @@ export default function UploadPage() {
 
       setPhase("processing");
       setCurrentStep("Processing images...");
-      setProgressText(`Image 1 of ${files.length}`);
+      setProgressText(`Image 1 of ${currentFiles.length}`);
       setStatusPollEnabled(true);
     } catch (err) {
       setError(
