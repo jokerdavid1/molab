@@ -59,6 +59,26 @@ type PreviewFile = {
   previewUrl: string;
 };
 
+type SliderStatus = {
+  connected?: boolean;
+  port?: string;
+  baud?: number;
+  active_limit_side?: "left" | "right" | null;
+  switch_on?: boolean;
+  last_status?: string;
+  last_error?: string | null;
+  step_mm?: number;
+  feed_rate?: number;
+  cont_feed_rate?: number;
+  home_feed_rate?: number;
+  limit_backoff_mm?: number;
+  home_backoff_mm?: number;
+  status?: string;
+  reason?: string;
+  direction?: string;
+  side?: string;
+};
+
 const CLOUD_API = "https://api.molab.ca";
 const LOCAL_API = "http://127.0.0.1:8000";
 const BATCH_SIZE = 8;
@@ -107,11 +127,17 @@ export default function UploadPage() {
     }))
   );
 
+  const [sliderStatus, setSliderStatus] = useState<SliderStatus | null>(null);
+  const [sliderBusy, setSliderBusy] = useState(false);
+  const [sliderError, setSliderError] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const captureCountRef = useRef(1);
+  const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdTriggeredRef = useRef<"left" | "right" | null>(null);
 
   const estimatedSeconds = useMemo(
     () => files.length * SECONDS_PER_IMAGE,
@@ -314,10 +340,28 @@ export default function UploadPage() {
     setProcAmpControls(results);
   };
 
+  const fetchSliderStatus = async () => {
+    try {
+      const res = await fetch(`${LOCAL_API}/slider/status`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      if (!res.ok) return null;
+
+      const data = (await res.json()) as SliderStatus;
+      setSliderStatus(data);
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
   const initializeMicroscopePanel = async () => {
     const api = await detectMicroscopeApi();
     await fetchMicroscopeStatus(api);
     await loadProcAmpControls(api);
+    await fetchSliderStatus();
   };
 
   const microscopePost = async (path: string, body: Record<string, unknown>) => {
@@ -352,6 +396,36 @@ export default function UploadPage() {
     }
   };
 
+  const sliderPost = async (path: string, body?: Record<string, unknown>) => {
+    setSliderBusy(true);
+    setSliderError(null);
+
+    try {
+      const res = await fetch(`${LOCAL_API}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || "Slider request failed.");
+      }
+
+      setSliderStatus(data);
+      await fetchSliderStatus();
+      return data;
+    } catch (err) {
+      setSliderError(
+        err instanceof Error ? err.message : "Slider request failed."
+      );
+      throw err;
+    } finally {
+      setSliderBusy(false);
+    }
+  };
+
   const setLed = async (on: boolean) => {
     await microscopePost("/microscope/led", { on });
   };
@@ -375,6 +449,70 @@ export default function UploadPage() {
         item.propValueIndex === propValueIndex ? { ...item, value } : item
       )
     );
+  };
+
+  const sliderConnect = async () => {
+    await sliderPost("/slider/connect");
+  };
+
+  const sliderHome = async () => {
+    await sliderPost("/slider/home");
+  };
+
+  const sliderStop = async () => {
+    await sliderPost("/slider/stop");
+  };
+
+  const sliderMoveLeft = async () => {
+    await sliderPost("/slider/move-left", { mm: 1.0, feed: 300 });
+  };
+
+  const sliderMoveRight = async () => {
+    await sliderPost("/slider/move-right", { mm: 1.0, feed: 300 });
+  };
+
+  const sliderStartLeft = async () => {
+    await sliderPost("/slider/start-left", { feed: 500 });
+  };
+
+  const sliderStartRight = async () => {
+    await sliderPost("/slider/start-right", { feed: 500 });
+  };
+
+  const handleSliderPress = (direction: "left" | "right") => {
+    holdTriggeredRef.current = null;
+
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+    }
+
+    holdTimeoutRef.current = setTimeout(async () => {
+      holdTriggeredRef.current = direction;
+      if (direction === "left") {
+        await sliderStartLeft();
+      } else {
+        await sliderStartRight();
+      }
+    }, 250);
+  };
+
+  const handleSliderRelease = async (direction: "left" | "right") => {
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+
+    if (holdTriggeredRef.current === direction) {
+      holdTriggeredRef.current = null;
+      await sliderStop();
+      return;
+    }
+
+    if (direction === "left") {
+      await sliderMoveLeft();
+    } else {
+      await sliderMoveRight();
+    }
   };
 
   const stopCamera = () => {
@@ -576,6 +714,7 @@ export default function UploadPage() {
 
   useEffect(() => {
     detectMicroscopeApi();
+    fetchSliderStatus();
   }, []);
 
   useEffect(() => {
@@ -641,12 +780,15 @@ export default function UploadPage() {
 
   useEffect(() => {
     return () => {
+      if (holdTimeoutRef.current) {
+        clearTimeout(holdTimeoutRef.current);
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
       files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
-  }, []);
+  }, [files]);
 
   const startAnalysis = async () => {
     if (files.length === 0) {
@@ -1098,6 +1240,138 @@ export default function UploadPage() {
                         This camera did not expose extra image-property sliders through the SDK.
                       </div>
                     )}
+
+                    <div className="mt-5 border-t border-white/10 pt-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-medium text-white">
+                          Slider Control
+                        </h4>
+                        {sliderBusy && (
+                          <span className="text-xs text-cyan-300">Working...</span>
+                        )}
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        <button
+                          type="button"
+                          onClick={sliderConnect}
+                          disabled={sliderBusy}
+                          className="w-full rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
+                        >
+                          Connect Slider
+                        </button>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            disabled={sliderBusy}
+                            onMouseDown={() => handleSliderPress("left")}
+                            onMouseUp={() => handleSliderRelease("left")}
+                            onMouseLeave={() => {
+                              if (holdTriggeredRef.current === "left") {
+                                void sliderStop();
+                                holdTriggeredRef.current = null;
+                              } else if (holdTimeoutRef.current) {
+                                clearTimeout(holdTimeoutRef.current);
+                                holdTimeoutRef.current = null;
+                              }
+                            }}
+                            onTouchStart={() => handleSliderPress("left")}
+                            onTouchEnd={() => handleSliderRelease("left")}
+                            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                          >
+                            ◀ LEFT
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={sliderBusy}
+                            onMouseDown={() => handleSliderPress("right")}
+                            onMouseUp={() => handleSliderRelease("right")}
+                            onMouseLeave={() => {
+                              if (holdTriggeredRef.current === "right") {
+                                void sliderStop();
+                                holdTriggeredRef.current = null;
+                              } else if (holdTimeoutRef.current) {
+                                clearTimeout(holdTimeoutRef.current);
+                                holdTimeoutRef.current = null;
+                              }
+                            }}
+                            onTouchStart={() => handleSliderPress("right")}
+                            onTouchEnd={() => handleSliderRelease("right")}
+                            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                          >
+                            RIGHT ▶
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={sliderHome}
+                            disabled={sliderBusy}
+                            className="rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
+                          >
+                            Home
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={sliderStop}
+                            disabled={sliderBusy}
+                            className="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/20 disabled:opacity-60"
+                          >
+                            Stop
+                          </button>
+                        </div>
+
+                        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-400">
+                          <div className="flex items-center justify-between">
+                            <span>Connected</span>
+                            <span className="text-slate-200">
+                              {sliderStatus?.connected ? "Yes" : "No"}
+                            </span>
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between">
+                            <span>Port</span>
+                            <span className="text-slate-200">
+                              {sliderStatus?.port ?? "COM3"}
+                            </span>
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between">
+                            <span>Active limit</span>
+                            <span className="text-slate-200">
+                              {sliderStatus?.active_limit_side ?? "None"}
+                            </span>
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between">
+                            <span>Switch</span>
+                            <span className="text-slate-200">
+                              {sliderStatus?.switch_on ? "On" : "Off"}
+                            </span>
+                          </div>
+
+                          {sliderStatus?.last_status && (
+                            <div className="mt-2 break-all text-[11px] text-slate-500">
+                              {sliderStatus.last_status}
+                            </div>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-slate-500">
+                          Tap button = 1 mm increment. Hold button = continuous motion.
+                        </p>
+
+                        {sliderError && (
+                          <div className="rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-300">
+                            {sliderError}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
