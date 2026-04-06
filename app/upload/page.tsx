@@ -134,7 +134,6 @@ export default function UploadPage() {
   const [autoScanRunning, setAutoScanRunning] = useState(false);
   const [autoScanStatus, setAutoScanStatus] = useState<string | null>(null);
   const [autoScanCount, setAutoScanCount] = useState(10);
-  const [autoScanStepMm, setAutoScanStepMm] = useState(2);
   const [autoScanWaitMs, setAutoScanWaitMs] = useState(2000);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -565,9 +564,13 @@ export default function UploadPage() {
       await sliderHome();
       await sleep(1200);
 
+      const TOTAL_LENGTH_MM = 100; // 10 cm
+
+      const stepMm = TOTAL_LENGTH_MM / autoScanCount;
+
       for (let i = 0; i < autoScanCount; i += 1) {
         setAutoScanStatus(`Moving to position ${i + 1} of ${autoScanCount}...`);
-        await sliderMoveRightBy(autoScanStepMm);
+        await sliderMoveRightBy(stepMm);
 
         setAutoScanStatus(`Waiting before capture ${i + 1} of ${autoScanCount}...`);
         await sleep(autoScanWaitMs);
@@ -1415,20 +1418,6 @@ export default function UploadPage() {
                             step={1}
                             value={autoScanCount}
                             onChange={(e) => setAutoScanCount(Number(e.target.value))}
-                            disabled={autoScanRunning}
-                            className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none"
-                          />
-                        </label>
-
-                        <label className="rounded-lg border border-white/10 bg-black/20 p-2 text-[11px] text-slate-300">
-                          <span className="block">Step mm</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={10}
-                            step={1}
-                            value={autoScanStepMm}
-                            onChange={(e) => setAutoScanStepMm(Number(e.target.value))}
                             disabled={autoScanRunning}
                             className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none"
                           />
