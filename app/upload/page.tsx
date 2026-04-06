@@ -564,7 +564,7 @@ export default function UploadPage() {
       await sliderHome();
       await sleep(1200);
 
-      const TOTAL_LENGTH_MM = 50; // 5 cm
+      const TOTAL_LENGTH_MM = 30; // 3 cm
 
       const stepMm = TOTAL_LENGTH_MM / autoScanCount;
 
