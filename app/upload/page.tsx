@@ -489,11 +489,11 @@ export default function UploadPage() {
   };
 
   const sliderMoveLeft = async () => {
-    await sliderPost("/slider/move-left", { mm: 1.0, feed: 300 });
+    await sliderPost("/slider/move-left", { mm: 0.5, feed: 300 });
   };
 
   const sliderMoveRight = async () => {
-    await sliderPost("/slider/move-right", { mm: 1.0, feed: 300 });
+    await sliderPost("/slider/move-right", { mm: 0.5, feed: 300 });
   };
 
   const sliderMoveRightBy = async (mm: number, feed = 300) => {
