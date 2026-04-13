@@ -70,14 +70,8 @@ export default async function DashboardPage() {
     .order("started_at", { ascending: false });
 
   const runList = runs ?? [];
-
   const totalRuns = runList.length;
-  const completedRuns = runList.filter((r: any) => r.status === "completed").length;
-  const processingRuns = runList.filter((r: any) => r.status === "processing" || r.status === "pending").length;
-  const failedRuns = runList.filter((r: any) => r.status === "failed").length;
-
-  const lastVisit =
-    user.last_sign_in_at || user.created_at || null;
+  const lastVisit = user.last_sign_in_at || user.created_at || null;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
@@ -96,12 +90,12 @@ export default async function DashboardPage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            View your analysis history, recent activity, and downloadable results in one place.
+            View your analysis history and downloadable results in one place.
           </p>
         </div>
 
         <div className="mx-auto mt-8 w-full max-w-7xl space-y-6">
-          <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
             <div className="rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
               <div className="rounded-[24px] border border-white/10 bg-black/20 p-6">
                 <p className="text-xs uppercase tracking-[0.25em] text-cyan-300">
@@ -122,19 +116,12 @@ export default async function DashboardPage() {
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap gap-3">
+                  <div className="mt-6">
                     <Link
                       href="/upload"
                       className="rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-5 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-[1.02] hover:bg-cyan-400/30"
                     >
                       Upload New Sample
-                    </Link>
-
-                    <Link
-                      href="/services"
-                      className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10"
-                    >
-                      Services
                     </Link>
                   </div>
                 </div>
@@ -142,33 +129,18 @@ export default async function DashboardPage() {
             </div>
 
             <div className="rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex items-center justify-between">
+                <div>
                   <p className="text-xs uppercase tracking-wide text-slate-400">
                     Total Analyses
                   </p>
-                  <p className="mt-3 text-3xl font-semibold text-white">{totalRuns}</p>
+                  <p className="mt-2 text-4xl font-semibold text-white">
+                    {totalRuns}
+                  </p>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Completed
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold text-emerald-300">{completedRuns}</p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Processing
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold text-cyan-300">{processingRuns}</p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Failed
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold text-red-300">{failedRuns}</p>
+                <div className="text-cyan-300 text-sm text-right">
+                  All your processed samples
                 </div>
               </div>
             </div>
@@ -177,9 +149,9 @@ export default async function DashboardPage() {
           <div className="rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-2xl font-semibold text-white">Recent Testing Activity</h2>
+                <h2 className="text-2xl font-semibold text-white">Testing History</h2>
                 <p className="mt-1 text-sm text-slate-400">
-                  Your analysis history and downloadable results.
+                  Date, time, image count, status, and result download links.
                 </p>
               </div>
 
@@ -195,7 +167,7 @@ export default async function DashboardPage() {
               <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-8 text-center">
                 <p className="text-lg font-medium text-white">No testing records yet</p>
                 <p className="mt-2 text-sm text-slate-400">
-                  Once uploads are saved into your account, they will appear here with date, status, and download links.
+                  Once your uploads are saved to your account, they will appear here.
                 </p>
               </div>
             ) : (
@@ -232,7 +204,6 @@ export default async function DashboardPage() {
                       {runList.map((run: any) => {
                         const sample = Array.isArray(run.samples) ? run.samples[0] : run.samples;
                         const downloadLink = getRunDownloadLink(run);
-
                         const displayTime = run.finished_at || run.started_at || sample?.created_at || null;
                         const timeObj = displayTime ? new Date(displayTime) : null;
 
