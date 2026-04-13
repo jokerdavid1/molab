@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import SiteHeader from "@/components/SiteHeader";
 
 export default function ContactPage() {
   const [name, setName] = useState("");
