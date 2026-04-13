@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import SiteHeader from "@/components/SiteHeader";
 
@@ -27,24 +26,50 @@ function formatDateOnly(value?: string | null) {
   });
 }
 
+function getBestResult(run: any) {
+  const results = Array.isArray(run.test_results) ? run.test_results : [];
+  if (results.length === 0) return null;
+
+  const completedWithFile =
+    results.find(
+      (r: any) =>
+        r?.result_json?.status === "completed" &&
+        (r?.report_file || r?.result_json?.zip_url)
+    ) ?? null;
+
+  if (completedWithFile) return completedWithFile;
+
+  const completed =
+    results.find((r: any) => r?.result_json?.status === "completed") ?? null;
+
+  if (completed) return completed;
+
+  return results[results.length - 1] ?? null;
+}
+
 function getRunFilesCount(run: any) {
-  const firstResult = Array.isArray(run.test_results) ? run.test_results[0] : null;
+  const bestResult = getBestResult(run);
   return (
-    firstResult?.result_json?.total_files ??
-    firstResult?.result_json?.files ??
-    firstResult?.result_json?.image_count ??
+    bestResult?.result_json?.total_files ??
+    bestResult?.result_json?.files ??
+    bestResult?.result_json?.image_count ??
     "—"
   );
 }
 
 function getRunGrainsCount(run: any) {
-  const firstResult = Array.isArray(run.test_results) ? run.test_results[0] : null;
-  return firstResult?.result_json?.total_grains ?? "—";
+  const bestResult = getBestResult(run);
+  return bestResult?.result_json?.total_grains ?? "—";
 }
 
 function getRunDownloadLink(run: any) {
-  const firstResult = Array.isArray(run.test_results) ? run.test_results[0] : null;
-  return firstResult?.report_file || firstResult?.result_json?.zip_url || null;
+  const bestResult = getBestResult(run);
+  return bestResult?.report_file || bestResult?.result_json?.zip_url || null;
+}
+
+function getDisplayStatus(run: any) {
+  const bestResult = getBestResult(run);
+  return bestResult?.result_json?.status || run.status || "—";
 }
 
 function startOfToday() {
@@ -79,17 +104,17 @@ export default async function DashboardPage() {
     redirect("/signin");
   }
 
-  const { data: runs } = await supabase
+  const { data: runs, error } = await supabase
     .from("test_runs")
     .select(`
       id,
+      user_id,
       status,
       started_at,
       finished_at,
       samples (
         id,
         sample_name,
-        sample_type,
         created_at
       ),
       test_results (
@@ -100,7 +125,12 @@ export default async function DashboardPage() {
         created_at
       )
     `)
+    .eq("user_id", user.id)
     .order("started_at", { ascending: false });
+
+  if (error) {
+    console.error("Dashboard query error:", error);
+  }
 
   const runList = (runs ?? []).map((run: any) => {
     const sample = Array.isArray(run.samples) ? run.samples[0] : run.samples;
@@ -133,8 +163,7 @@ export default async function DashboardPage() {
     return new Date(run.timestamp) >= last30Start;
   }).length;
 
-  const days = Math.max(1, Math.min(30, runList.length));
-  const avgPerDay30 = Math.round(last30Runs / days);
+  const avgPerDay30 = Math.round((last30Runs / 30) * 10) / 10;
 
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(last7Start);
@@ -159,92 +188,139 @@ export default async function DashboardPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_25%),radial-gradient(circle_at_18%_78%,rgba(59,130,246,0.08),transparent_18%),radial-gradient(circle_at_85%_24%,rgba(14,165,233,0.08),transparent_20%)]" />
+        <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:44px_44px]" />
+        <div className="absolute left-1/2 top-[-120px] h-[340px] w-[340px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
+      </div>
+
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pb-8 sm:px-6 lg:px-8">
         <SiteHeader />
 
         <div className="mt-8 text-center">
-          <h1 className="text-3xl font-semibold">Dashboard</h1>
-          <p className="text-slate-400 mt-2">
+          <h1 className="text-4xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="mt-3 text-slate-400">
             Welcome <span className="text-cyan-300">{user.email}</span>
           </p>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="mt-1 text-sm text-slate-500">
             Last visit: {formatDateTime(lastVisit)}
           </p>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
           <Stat title="Total" value={totalRuns} />
           <Stat title="This Month" value={thisMonthRuns} />
           <Stat title="7 Days" value={last7Runs} />
           <Stat title="Avg/Day" value={avgPerDay30} />
         </div>
 
-        {/* Chart */}
-        <div className="mt-8 bg-black/20 p-6 rounded-2xl">
-          <h2 className="text-xl mb-4">Last 7 Days</h2>
-          <div className="flex items-end gap-2 h-40">
+        <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-6">
+          <h2 className="mb-4 text-2xl font-semibold">Last 7 Days</h2>
+
+          <div className="flex h-48 items-end gap-2">
             {last7Days.map((d, i) => (
-              <div key={i} className="flex flex-col items-center flex-1">
-                <div className="text-xs">{d.count}</div>
+              <div key={i} className="flex flex-1 flex-col items-center">
+                <div className="mb-2 text-sm text-white">{d.count}</div>
                 <div
-                  className="w-full bg-cyan-400 rounded-t"
+                  className="w-full rounded-t bg-cyan-400"
                   style={{
                     height: `${(d.count / maxChartValue) * 100}%`,
-                    minHeight: d.count ? "10px" : "4px",
+                    minHeight: d.count ? "14px" : "4px",
                   }}
                 />
-                <div className="text-xs mt-1">{d.label}</div>
+                <div className="mt-2 text-sm text-white">{d.label}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Table */}
-        <div className="mt-8 bg-black/20 rounded-2xl p-6">
-          <h2 className="text-xl mb-4">History</h2>
+        <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-6">
+          <h2 className="mb-4 text-2xl font-semibold">History</h2>
 
           {runList.length === 0 ? (
-            <p className="text-slate-400">No records yet</p>
+            <p className="text-slate-400">No records yet.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="text-slate-400">
-                <tr>
-                  <th>Sample</th>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th>Images</th>
-                  <th>Status</th>
-                  <th>Download</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runList.map((run: any) => {
-                  const sample = run.sample;
-                  const time = run.timestamp;
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead className="text-slate-400">
+                  <tr className="border-b border-white/10">
+                    <th className="px-2 py-3 text-left">Sample</th>
+                    <th className="px-2 py-3 text-left">Date</th>
+                    <th className="px-2 py-3 text-left">Time</th>
+                    <th className="px-2 py-3 text-left">Images</th>
+                    <th className="px-2 py-3 text-left">Grains</th>
+                    <th className="px-2 py-3 text-left">Status</th>
+                    <th className="px-2 py-3 text-left">Download</th>
+                  </tr>
+                </thead>
 
-                  return (
-                    <tr key={run.id} className="border-t border-white/10">
-                      <td>{sample?.sample_name}</td>
-                      <td>{formatDateOnly(time)}</td>
-                      <td>{formatDateTime(time)}</td>
-                      <td>{getRunFilesCount(run)}</td>
-                      <td>{run.status}</td>
-                      <td>
-                        {getRunDownloadLink(run) && (
-                          <a
-                            href={`https://api.molab.ca${getRunDownloadLink(run)}`}
-                            className="text-cyan-300"
+                <tbody>
+                  {runList.map((run: any) => {
+                    const sample = run.sample;
+                    const time = run.timestamp;
+                    const downloadLink = getRunDownloadLink(run);
+                    const displayStatus = getDisplayStatus(run);
+
+                    return (
+                      <tr key={run.id} className="border-t border-white/10">
+                        <td className="px-2 py-4 text-white">
+                          {sample?.sample_name || "Untitled Sample"}
+                        </td>
+
+                        <td className="px-2 py-4 text-white">
+                          {formatDateOnly(time)}
+                        </td>
+
+                        <td className="px-2 py-4 text-white">
+                          {formatDateTime(time)}
+                        </td>
+
+                        <td className="px-2 py-4 text-white">
+                          {getRunFilesCount(run)}
+                        </td>
+
+                        <td className="px-2 py-4 text-white">
+                          {getRunGrainsCount(run)}
+                        </td>
+
+                        <td className="px-2 py-4">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-medium ${
+                              displayStatus === "completed"
+                                ? "bg-emerald-400/15 text-emerald-300"
+                                : displayStatus === "processing"
+                                ? "bg-amber-400/15 text-amber-300"
+                                : displayStatus === "failed"
+                                ? "bg-red-400/15 text-red-300"
+                                : "bg-slate-400/15 text-slate-300"
+                            }`}
                           >
-                            Download
-                          </a>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            {displayStatus}
+                          </span>
+                        </td>
+
+                        <td className="px-2 py-4">
+                          {downloadLink ? (
+                            <a
+                              href={
+                                downloadLink.startsWith("http")
+                                  ? downloadLink
+                                  : `https://api.molab.ca${downloadLink}`
+                              }
+                              className="text-cyan-300 transition hover:text-cyan-200 hover:underline"
+                            >
+                              Download
+                            </a>
+                          ) : (
+                            <span className="text-slate-500">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </section>
@@ -252,11 +328,11 @@ export default async function DashboardPage() {
   );
 }
 
-function Stat({ title, value }: any) {
+function Stat({ title, value }: { title: string; value: string | number }) {
   return (
-    <div className="bg-black/20 p-4 rounded-xl text-center">
-      <p className="text-xs text-slate-400">{title}</p>
-      <p className="text-2xl text-white mt-2">{value}</p>
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-5 text-center">
+      <p className="text-sm text-slate-400">{title}</p>
+      <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
     </div>
   );
 }
