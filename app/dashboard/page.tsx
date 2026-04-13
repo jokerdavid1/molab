@@ -120,7 +120,8 @@ export default async function DashboardPage() {
     return new Date(run.timestamp) >= last30Start;
   }).length;
 
-  const avgPerDay30 = (last30Runs / 30).toFixed(2);
+  const days = Math.max(1, Math.min(30, runList.length));
+  const avgPerDay30 = Math.round(last30Runs / days);
 
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(last7Start);
