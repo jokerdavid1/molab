@@ -1,6 +1,39 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import SiteHeader from "@/components/SiteHeader";
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  return d.toLocaleString();
+}
+
+function formatDateOnly(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  return d.toLocaleDateString();
+}
+
+function getRunFilesCount(run: any) {
+  const firstResult = Array.isArray(run.test_results) ? run.test_results[0] : null;
+  return (
+    firstResult?.result_json?.total_files ??
+    firstResult?.result_json?.files ??
+    firstResult?.result_json?.image_count ??
+    "—"
+  );
+}
+
+function getRunGrainsCount(run: any) {
+  const firstResult = Array.isArray(run.test_results) ? run.test_results[0] : null;
+  return firstResult?.result_json?.total_grains ?? "—";
+}
+
+function getRunDownloadLink(run: any) {
+  const firstResult = Array.isArray(run.test_results) ? run.test_results[0] : null;
+  return firstResult?.report_file || firstResult?.result_json?.zip_url || null;
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -12,6 +45,39 @@ export default async function DashboardPage() {
   if (!user) {
     redirect("/signin");
   }
+
+  const { data: runs } = await supabase
+    .from("test_runs")
+    .select(`
+      id,
+      status,
+      started_at,
+      finished_at,
+      samples (
+        id,
+        sample_name,
+        sample_type,
+        created_at
+      ),
+      test_results (
+        id,
+        test_type,
+        report_file,
+        result_json,
+        created_at
+      )
+    `)
+    .order("started_at", { ascending: false });
+
+  const runList = runs ?? [];
+
+  const totalRuns = runList.length;
+  const completedRuns = runList.filter((r: any) => r.status === "completed").length;
+  const processingRuns = runList.filter((r: any) => r.status === "processing" || r.status === "pending").length;
+  const failedRuns = runList.filter((r: any) => r.status === "failed").length;
+
+  const lastVisit =
+    user.last_sign_in_at || user.created_at || null;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
@@ -30,90 +96,216 @@ export default async function DashboardPage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            Access your uploads, sample history, and analysis results from one secure dashboard.
+            View your analysis history, recent activity, and downloadable results in one place.
           </p>
         </div>
 
-        <div className="mx-auto mt-10 w-full max-w-6xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
-          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-8">
-              <p className="text-xs uppercase tracking-[0.25em] text-cyan-300">
-                Welcome
-              </p>
+        <div className="mx-auto mt-8 w-full max-w-7xl space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+            <div className="rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
+              <div className="rounded-[24px] border border-white/10 bg-black/20 p-6">
+                <p className="text-xs uppercase tracking-[0.25em] text-cyan-300">
+                  Welcome
+                </p>
 
-              <h1 className="mt-3 text-4xl font-semibold text-white">
-                Dashboard
-              </h1>
+                <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h1 className="text-3xl font-semibold text-white lg:text-4xl">
+                      Dashboard
+                    </h1>
+                    <p className="mt-3 text-base text-slate-400">
+                      Signed in as{" "}
+                      <span className="font-medium text-cyan-300">{user.email}</span>
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Last visit: {formatDateTime(lastVisit)}
+                    </p>
+                  </div>
 
-              <p className="mt-4 text-base text-slate-400">
-                Logged in as{" "}
-                <span className="font-medium text-cyan-300">{user.email}</span>
-              </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      href="/upload"
+                      className="rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-5 py-3 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-[1.02] hover:bg-cyan-400/30"
+                    >
+                      Upload New Sample
+                    </Link>
+
+                    <Link
+                      href="/services"
+                      className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+                    >
+                      Services
+                    </Link>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-8">
-              <p className="text-xs uppercase tracking-[0.25em] text-cyan-300">
-                Account
-              </p>
-
-              <div className="mt-5 space-y-4">
-                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                    User
+                    Total Analyses
                   </p>
-                  <p className="mt-2 text-lg font-medium text-white">
-                    {user.email}
-                  </p>
+                  <p className="mt-3 text-3xl font-semibold text-white">{totalRuns}</p>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Status
+                    Completed
                   </p>
-                  <p className="mt-2 text-lg font-medium text-emerald-300">
-                    Signed In
-                  </p>
+                  <p className="mt-3 text-3xl font-semibold text-emerald-300">{completedRuns}</p>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Next Step
+                    Processing
                   </p>
-                  <p className="mt-2 text-sm text-slate-300">
-                    Open the upload page and submit a sample for analysis.
+                  <p className="mt-3 text-3xl font-semibold text-cyan-300">{processingRuns}</p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                    Failed
                   </p>
+                  <p className="mt-3 text-3xl font-semibold text-red-300">{failedRuns}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-              <p className="text-xs uppercase tracking-wide text-slate-400">
-                Upload Samples
-              </p>
-              <p className="mt-2 text-sm text-slate-300">
-                Start a new image analysis workflow from the upload page.
-              </p>
+          <div className="rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-white">Recent Testing Activity</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Your analysis history and downloadable results.
+                </p>
+              </div>
+
+              <Link
+                href="/upload"
+                className="rounded-xl border border-cyan-300/30 bg-cyan-400/20 px-5 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/30"
+              >
+                Start New Analysis
+              </Link>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-              <p className="text-xs uppercase tracking-wide text-slate-400">
-                Results History
-              </p>
-              <p className="mt-2 text-sm text-slate-300">
-                Your previous sample results will appear here next.
-              </p>
-            </div>
+            {runList.length === 0 ? (
+              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-8 text-center">
+                <p className="text-lg font-medium text-white">No testing records yet</p>
+                <p className="mt-2 text-sm text-slate-400">
+                  Once uploads are saved into your account, they will appear here with date, status, and download links.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead className="bg-white/[0.04]">
+                      <tr>
+                        <th className="px-4 py-4 text-left text-xs uppercase tracking-wide text-slate-400">
+                          Sample
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs uppercase tracking-wide text-slate-400">
+                          Date
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs uppercase tracking-wide text-slate-400">
+                          Time
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs uppercase tracking-wide text-slate-400">
+                          Images
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs uppercase tracking-wide text-slate-400">
+                          Grains
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs uppercase tracking-wide text-slate-400">
+                          Status
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs uppercase tracking-wide text-slate-400">
+                          Download
+                        </th>
+                      </tr>
+                    </thead>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-              <p className="text-xs uppercase tracking-wide text-slate-400">
-                Secure Access
-              </p>
-              <p className="mt-2 text-sm text-slate-300">
-                Each account will only see its own uploads and reports.
-              </p>
-            </div>
+                    <tbody className="divide-y divide-white/10 bg-black/20">
+                      {runList.map((run: any) => {
+                        const sample = Array.isArray(run.samples) ? run.samples[0] : run.samples;
+                        const downloadLink = getRunDownloadLink(run);
+
+                        const displayTime = run.finished_at || run.started_at || sample?.created_at || null;
+                        const timeObj = displayTime ? new Date(displayTime) : null;
+
+                        return (
+                          <tr key={run.id} className="hover:bg-white/[0.03]">
+                            <td className="px-4 py-4">
+                              <div>
+                                <p className="font-medium text-white">
+                                  {sample?.sample_name || "Untitled Sample"}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {sample?.sample_type || "No type"}
+                                </p>
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-4 text-sm text-slate-300">
+                              {formatDateOnly(displayTime)}
+                            </td>
+
+                            <td className="px-4 py-4 text-sm text-slate-300">
+                              {timeObj ? timeObj.toLocaleTimeString() : "—"}
+                            </td>
+
+                            <td className="px-4 py-4 text-sm text-slate-300">
+                              {getRunFilesCount(run)}
+                            </td>
+
+                            <td className="px-4 py-4 text-sm text-slate-300">
+                              {getRunGrainsCount(run)}
+                            </td>
+
+                            <td className="px-4 py-4">
+                              <span
+                                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                                  run.status === "completed"
+                                    ? "bg-emerald-400/15 text-emerald-300"
+                                    : run.status === "failed"
+                                    ? "bg-red-400/15 text-red-300"
+                                    : "bg-cyan-400/15 text-cyan-300"
+                                }`}
+                              >
+                                {run.status || "pending"}
+                              </span>
+                            </td>
+
+                            <td className="px-4 py-4">
+                              {downloadLink ? (
+                                <a
+                                  href={
+                                    typeof downloadLink === "string" &&
+                                    downloadLink.startsWith("http")
+                                      ? downloadLink
+                                      : typeof downloadLink === "string"
+                                      ? `https://api.molab.ca${downloadLink}`
+                                      : "#"
+                                  }
+                                  className="inline-flex rounded-lg border border-cyan-300/30 bg-cyan-400/20 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/30"
+                                >
+                                  Download
+                                </a>
+                              ) : (
+                                <span className="text-sm text-slate-500">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
