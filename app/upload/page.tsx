@@ -1266,10 +1266,19 @@ export default function UploadPage() {
                           <button
                             type="button"
                             onClick={stageConnect}
-                            disabled={stageBusy || autoScanRunning}
+                            disabled={stageBusy || autoScanRunning || !!stageStatus?.connected}
                             className="rounded-lg border border-cyan-300/30 bg-cyan-400/20 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
                           >
-                            Connect Turntable
+                            {stageStatus?.connected ? "Turntable Connected" : "Connect Turntable"}
+                          </button>
+                        
+                          <button
+                            type="button"
+                            onClick={() => stagePost("/stage/disconnect")}
+                            disabled={stageBusy || autoScanRunning || !stageStatus?.connected}
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                          >
+                            Disconnect Turntable
                           </button>
                         </div>
 
@@ -1322,7 +1331,7 @@ export default function UploadPage() {
 
                             <span>Port</span>
                             <span className="text-right text-slate-200">
-                              {stageStatus?.port ?? "COM4"}
+                              {stageStatus?.port ?? "AUTO"}
                             </span>
 
                             <span>Running</span>
