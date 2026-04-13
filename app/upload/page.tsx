@@ -93,9 +93,11 @@ const PROCAMP_DEFS = [
 
 export default function UploadPage() {
   const supabase = createClient();
+
   const [authLoading, setAuthLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const [files, setFiles] = useState<PreviewFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -764,6 +766,7 @@ export default function UploadPage() {
 
       setIsAuthenticated(true);
       setUserEmail(user.email ?? null);
+      setUserId(user.id);
       setAuthLoading(false);
     };
 
@@ -854,6 +857,11 @@ export default function UploadPage() {
       return;
     }
 
+    if (!userId) {
+      setError("User account not found. Please sign in again.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setResult(null);
@@ -866,14 +874,25 @@ export default function UploadPage() {
     setStatusPollEnabled(false);
 
     try {
+      const sampleName = `Sample ${new Date().toLocaleString("en-CA")}`;
+
       const startRes = await fetch(`${CLOUD_API}/analyze/start`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          sample_name: sampleName,
+        }),
       });
 
       const startData = await startRes.json();
 
       if (!startRes.ok || !startData.job_id) {
-        throw new Error(startData?.error || "Failed to start job.");
+        throw new Error(
+          startData?.detail || startData?.error || "Failed to start job."
+        );
       }
 
       const newJobId = startData.job_id as string;
