@@ -643,7 +643,10 @@ export default function UploadPage() {
       });
 
       setCameraOpen(true);
-      await initializeMicroscopePanel();
+
+      if (!microscopeStatus) {
+        await initializeMicroscopePanel();
+      }
     } catch {
       setCameraError(
         "Could not open the selected microscope/camera. Close any microscope software using it, allow browser camera permission, and try again."
@@ -702,6 +705,14 @@ export default function UploadPage() {
         setCameraError("Camera preview is not ready.");
         return;
       }
+
+      if (!microscopeStatus?.led_on) {
+        await setLed(true);
+        await sleep(120);
+      }
+
+      await setLightLevel(microscopeStatus?.light_level ?? 6);
+      await sleep(120);
 
       const video = videoRef.current;
       const canvas = canvasRef.current;
