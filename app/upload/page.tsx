@@ -59,24 +59,21 @@ type PreviewFile = {
   previewUrl: string;
 };
 
-type SliderStatus = {
+type StageStatus = {
   connected?: boolean;
   port?: string;
   baud?: number;
-  active_limit_side?: "left" | "right" | null;
-  switch_on?: boolean;
-  last_status?: string;
+  running?: boolean;
+  pause_count?: number;
+  total_steps?: number;
+  direction?: number;
+  angle?: number;
+  delay?: number;
+  last_reply?: string;
   last_error?: string | null;
-  step_mm?: number;
-  feed_rate?: number;
-  cont_feed_rate?: number;
-  home_feed_rate?: number;
-  limit_backoff_mm?: number;
-  home_backoff_mm?: number;
   status?: string;
-  reason?: string;
-  direction?: string;
-  side?: string;
+  message?: string;
+  reply?: string;
 };
 
 const CLOUD_API = "https://api.molab.ca";
@@ -127,14 +124,15 @@ export default function UploadPage() {
     }))
   );
 
-  const [sliderStatus, setSliderStatus] = useState<SliderStatus | null>(null);
-  const [sliderBusy, setSliderBusy] = useState(false);
-  const [sliderError, setSliderError] = useState<string | null>(null);
+  const [stageStatus, setStageStatus] = useState<StageStatus | null>(null);
+  const [stageBusy, setStageBusy] = useState(false);
+  const [stageError, setStageError] = useState<string | null>(null);
 
   const [autoScanRunning, setAutoScanRunning] = useState(false);
   const [autoScanStatus, setAutoScanStatus] = useState<string | null>(null);
   const [autoScanCount, setAutoScanCount] = useState(10);
   const [autoScanWaitMs, setAutoScanWaitMs] = useState(2000);
+  const [manualStepAngle, setManualStepAngle] = useState(10);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const filesRef = useRef<PreviewFile[]>([]);
@@ -142,8 +140,6 @@ export default function UploadPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const captureCountRef = useRef(1);
-  const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const holdTriggeredRef = useRef<"left" | "right" | null>(null);
 
   const estimatedSeconds = useMemo(
     () => files.length * SECONDS_PER_IMAGE,
@@ -365,17 +361,17 @@ export default function UploadPage() {
     setProcAmpControls(results);
   };
 
-  const fetchSliderStatus = async () => {
+  const fetchStageStatus = async () => {
     try {
-      const res = await fetch(`${LOCAL_API}/slider/status`, {
+      const res = await fetch(`${LOCAL_API}/stage/status`, {
         method: "GET",
         cache: "no-store",
       });
 
       if (!res.ok) return null;
 
-      const data = (await res.json()) as SliderStatus;
-      setSliderStatus(data);
+      const data = (await res.json()) as StageStatus;
+      setStageStatus(data);
       return data;
     } catch {
       return null;
@@ -386,7 +382,7 @@ export default function UploadPage() {
     const api = await detectMicroscopeApi();
     await fetchMicroscopeStatus(api);
     await loadProcAmpControls(api);
-    await fetchSliderStatus();
+    await fetchStageStatus();
   };
 
   const microscopePost = async (path: string, body: Record<string, unknown>) => {
@@ -421,9 +417,9 @@ export default function UploadPage() {
     }
   };
 
-  const sliderPost = async (path: string, body?: Record<string, unknown>) => {
-    setSliderBusy(true);
-    setSliderError(null);
+  const stagePost = async (path: string, body?: Record<string, unknown>) => {
+    setStageBusy(true);
+    setStageError(null);
 
     try {
       const res = await fetch(`${LOCAL_API}${path}`, {
@@ -435,19 +431,19 @@ export default function UploadPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.detail || data?.error || "Slider request failed.");
+        throw new Error(data?.detail || data?.error || "Turntable request failed.");
       }
 
-      setSliderStatus(data);
-      await fetchSliderStatus();
+      setStageStatus(data);
+      await fetchStageStatus();
       return data;
     } catch (err) {
-      setSliderError(
-        err instanceof Error ? err.message : "Slider request failed."
+      setStageError(
+        err instanceof Error ? err.message : "Turntable request failed."
       );
       throw err;
     } finally {
-      setSliderBusy(false);
+      setStageBusy(false);
     }
   };
 
@@ -476,72 +472,16 @@ export default function UploadPage() {
     );
   };
 
-  const sliderConnect = async () => {
-    await sliderPost("/slider/connect");
+  const stageConnect = async () => {
+    await stagePost("/stage/connect");
   };
 
-  const sliderHome = async () => {
-    await sliderPost("/slider/home");
+  const rotateClockwise = async (angle: number) => {
+    await stagePost("/stage/rotate", { angle, direction: 0 });
   };
 
-  const sliderStop = async () => {
-    await sliderPost("/slider/stop");
-  };
-
-  const sliderMoveLeft = async () => {
-    await sliderPost("/slider/move-left", { mm: 0.5, feed: 300 });
-  };
-
-  const sliderMoveRight = async () => {
-    await sliderPost("/slider/move-right", { mm: 0.5, feed: 300 });
-  };
-
-  const sliderMoveRightBy = async (mm: number, feed = 300) => {
-    await sliderPost("/slider/move-right", { mm, feed });
-  };
-
-  const sliderStartLeft = async () => {
-    await sliderPost("/slider/start-left", { feed: 500 });
-  };
-
-  const sliderStartRight = async () => {
-    await sliderPost("/slider/start-right", { feed: 500 });
-  };
-
-  const handleSliderPress = (direction: "left" | "right") => {
-    holdTriggeredRef.current = null;
-
-    if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current);
-    }
-
-    holdTimeoutRef.current = setTimeout(async () => {
-      holdTriggeredRef.current = direction;
-      if (direction === "left") {
-        await sliderStartLeft();
-      } else {
-        await sliderStartRight();
-      }
-    }, 250);
-  };
-
-  const handleSliderRelease = async (direction: "left" | "right") => {
-    if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
-
-    if (holdTriggeredRef.current === direction) {
-      holdTriggeredRef.current = null;
-      await sliderStop();
-      return;
-    }
-
-    if (direction === "left") {
-      await sliderMoveLeft();
-    } else {
-      await sliderMoveRight();
-    }
+  const rotateCounterClockwise = async (angle: number) => {
+    await stagePost("/stage/rotate", { angle, direction: 1 });
   };
 
   const runAutomaticScan = async () => {
@@ -552,37 +492,43 @@ export default function UploadPage() {
       return;
     }
 
-    if (!sliderStatus?.connected) {
-      setSliderError("Connect the slider first.");
+    if (!stageStatus?.connected) {
+      setStageError("Connect the turntable first.");
+      return;
+    }
+
+    if (autoScanCount < 1) {
+      setStageError("Number of pictures must be at least 1.");
       return;
     }
 
     setAutoScanRunning(true);
-    setAutoScanStatus("Going home...");
 
     try {
-      await sliderHome();
-      await sleep(1200);
+      const currentFiles = filesRef.current;
+      if (currentFiles.length > 0) {
+        clearSelectedFiles();
+      }
 
-      const TOTAL_LENGTH_MM = 30; // 3 cm
+      resetAnalysisState();
 
-      const stepMm = TOTAL_LENGTH_MM / autoScanCount;
+      const stepAngle = 360 / autoScanCount;
 
-      for (let i = 0; i < autoScanCount; i += 1) {
-        setAutoScanStatus(`Moving to position ${i + 1} of ${autoScanCount}...`);
-        await sliderMoveRightBy(stepMm);
+      setAutoScanStatus(`Capturing image 1 of ${autoScanCount}...`);
+      await capturePhoto();
+      await sleep(400);
+
+      for (let i = 1; i < autoScanCount; i += 1) {
+        setAutoScanStatus(`Rotating to position ${i + 1} of ${autoScanCount}...`);
+        await rotateCounterClockwise(stepAngle);
 
         setAutoScanStatus(`Waiting before capture ${i + 1} of ${autoScanCount}...`);
         await sleep(autoScanWaitMs);
 
         setAutoScanStatus(`Capturing image ${i + 1} of ${autoScanCount}...`);
         await capturePhoto();
-        await sleep(300);
+        await sleep(400);
       }
-
-      setAutoScanStatus("Returning home...");
-      await sliderHome();
-      await sleep(1200);
 
       setAutoScanStatus("Preparing analysis...");
       await sleep(500);
@@ -590,11 +536,11 @@ export default function UploadPage() {
       setAutoScanStatus("Starting analysis...");
       await startAnalysis();
 
-      setAutoScanStatus("Automatic scan completed. Analysis started.");
+      setAutoScanStatus("Automatic capture completed. Analysis started.");
     } catch (err) {
-      setAutoScanStatus("Automatic scan failed.");
-      setSliderError(
-        err instanceof Error ? err.message : "Automatic scan failed."
+      setAutoScanStatus("Automatic capture failed.");
+      setStageError(
+        err instanceof Error ? err.message : "Automatic capture failed."
       );
     } finally {
       setAutoScanRunning(false);
@@ -800,7 +746,7 @@ export default function UploadPage() {
 
   useEffect(() => {
     detectMicroscopeApi();
-    fetchSliderStatus();
+    fetchStageStatus();
   }, []);
 
   useEffect(() => {
@@ -867,9 +813,6 @@ export default function UploadPage() {
 
   useEffect(() => {
     return () => {
-      if (holdTimeoutRef.current) {
-        clearTimeout(holdTimeoutRef.current);
-      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -1311,95 +1254,83 @@ export default function UploadPage() {
                     <div className="mt-3 border-t border-white/10 pt-3">
                       <div className="flex items-center justify-between gap-2">
                         <h4 className="text-xs font-semibold uppercase tracking-wide text-white/90">
-                          Slider Control
+                          Turntable Control
                         </h4>
-                        {sliderBusy && (
+                        {stageBusy && (
                           <span className="text-[11px] text-cyan-300">Working...</span>
                         )}
                       </div>
 
                       <div className="mt-3 space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 gap-2">
                           <button
                             type="button"
-                            onClick={sliderConnect}
-                            disabled={sliderBusy || autoScanRunning}
+                            onClick={stageConnect}
+                            disabled={stageBusy || autoScanRunning}
                             className="rounded-lg border border-cyan-300/30 bg-cyan-400/20 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
                           >
-                            Connect
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={sliderHome}
-                            disabled={sliderBusy || autoScanRunning}
-                            className="rounded-lg border border-cyan-300/30 bg-cyan-400/20 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
-                          >
-                            Home
+                            Connect Turntable
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            disabled={sliderBusy || autoScanRunning}
-                            onMouseDown={() => handleSliderPress("left")}
-                            onMouseUp={() => handleSliderRelease("left")}
-                            onMouseLeave={() => {
-                              if (holdTriggeredRef.current === "left") {
-                                void sliderStop();
-                                holdTriggeredRef.current = null;
-                              } else if (holdTimeoutRef.current) {
-                                clearTimeout(holdTimeoutRef.current);
-                                holdTimeoutRef.current = null;
-                              }
-                            }}
-                            onTouchStart={() => handleSliderPress("left")}
-                            onTouchEnd={() => handleSliderRelease("left")}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
-                          >
-                            ◀ Left
-                          </button>
+                        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                          <div className="mb-2 text-[11px] uppercase tracking-wide text-slate-300">
+                            Manual Mode
+                          </div>
 
-                          <button
-                            type="button"
-                            disabled={sliderBusy || autoScanRunning}
-                            onMouseDown={() => handleSliderPress("right")}
-                            onMouseUp={() => handleSliderRelease("right")}
-                            onMouseLeave={() => {
-                              if (holdTriggeredRef.current === "right") {
-                                void sliderStop();
-                                holdTriggeredRef.current = null;
-                              } else if (holdTimeoutRef.current) {
-                                clearTimeout(holdTimeoutRef.current);
-                                holdTimeoutRef.current = null;
-                              }
-                            }}
-                            onTouchStart={() => handleSliderPress("right")}
-                            onTouchEnd={() => handleSliderRelease("right")}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
-                          >
-                            Right ▶
-                          </button>
+                          <label className="block text-[11px] text-slate-300">
+                            Step angle (degrees)
+                            <input
+                              type="number"
+                              min={1}
+                              max={360}
+                              step={1}
+                              value={manualStepAngle}
+                              onChange={(e) => setManualStepAngle(Number(e.target.value))}
+                              disabled={stageBusy || autoScanRunning}
+                              className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-2 text-xs text-white outline-none"
+                            />
+                          </label>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => rotateClockwise(manualStepAngle)}
+                              disabled={stageBusy || autoScanRunning || !stageStatus?.connected}
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                            >
+                              ↻ Clockwise
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => rotateCounterClockwise(manualStepAngle)}
+                              disabled={stageBusy || autoScanRunning || !stageStatus?.connected}
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                            >
+                              ↺ Counterclockwise
+                            </button>
+                          </div>
                         </div>
 
                         <div className="rounded-lg border border-white/10 bg-black/20 p-2.5 text-[11px] text-slate-400">
                           <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                             <span>Connected</span>
                             <span className="text-right text-slate-200">
-                              {sliderStatus?.connected ? "Yes" : "No"}
+                              {stageStatus?.connected ? "Yes" : "No"}
                             </span>
 
                             <span>Port</span>
                             <span className="text-right text-slate-200">
-                              {sliderStatus?.port ?? "COM3"}
+                              {stageStatus?.port ?? "COM4"}
+                            </span>
+
+                            <span>Running</span>
+                            <span className="text-right text-slate-200">
+                              {stageStatus?.running ? "Yes" : "No"}
                             </span>
                           </div>
                         </div>
-
-                        <p className="text-[11px] text-slate-500">
-                          Tap = 1 mm increment. Hold = continuous motion.
-                        </p>
                       </div>
                     </div>
 
@@ -1408,13 +1339,13 @@ export default function UploadPage() {
                         Automatic Mode
                       </h4>
 
-                      <div className="mt-3 grid grid-cols-3 gap-2">
+                      <div className="mt-3 grid grid-cols-2 gap-2">
                         <label className="rounded-lg border border-white/10 bg-black/20 p-2 text-[11px] text-slate-300">
-                          <span className="block">Pics</span>
+                          <span className="block">Pictures</span>
                           <input
                             type="number"
                             min={1}
-                            max={50}
+                            max={72}
                             step={1}
                             value={autoScanCount}
                             onChange={(e) => setAutoScanCount(Number(e.target.value))}
@@ -1427,8 +1358,8 @@ export default function UploadPage() {
                           <span className="block">Wait s</span>
                           <input
                             type="number"
-                            min={0.5}
-                            max={5}
+                            min={0}
+                            max={30}
                             step={0.5}
                             value={autoScanWaitMs / 1000}
                             onChange={(e) => setAutoScanWaitMs(Number(e.target.value) * 1000)}
@@ -1438,10 +1369,17 @@ export default function UploadPage() {
                         </label>
                       </div>
 
+                      <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-2.5 text-[11px] text-slate-400">
+                        Turntable step per picture:{" "}
+                        <span className="text-cyan-300">
+                          {(360 / Math.max(autoScanCount || 1, 1)).toFixed(2)}°
+                        </span>
+                      </div>
+
                       <button
                         type="button"
                         onClick={runAutomaticScan}
-                        disabled={autoScanRunning || isLoading || !cameraOpen || !sliderStatus?.connected}
+                        disabled={autoScanRunning || isLoading || !cameraOpen || !stageStatus?.connected}
                         className="mt-3 w-full rounded-lg border border-cyan-300/30 bg-cyan-400/20 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-60"
                       >
                         {autoScanRunning ? "Running Automatic Mode..." : "Start Automatic Mode"}
@@ -1453,8 +1391,6 @@ export default function UploadPage() {
                         </div>
                       )}
                     </div>
-
-
 
                     <div className="mt-3 border-t border-white/10 pt-3">
                       <div className="grid grid-cols-1 gap-2">
@@ -1482,9 +1418,9 @@ export default function UploadPage() {
                       </p>
                     </div>
 
-                    {sliderError && (
+                    {stageError && (
                       <div className="mt-3 rounded-lg border border-red-400/20 bg-red-500/10 p-2.5 text-xs text-red-300">
-                        {sliderError}
+                        {stageError}
                       </div>
                     )}
                   </div>
