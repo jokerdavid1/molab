@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import SiteHeader from "@/components/SiteHeader";
 
 type SieveRow = {
   mesh: string;
@@ -965,38 +966,7 @@ export default function UploadPage() {
       </div>
 
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-8 sm:px-6 lg:px-8">
-        <header className="grid h-20 grid-cols-[1fr_auto_1fr] items-center">
-          <div className="flex items-center">
-            <Link href="/">
-              <Image
-                src="/logo/logo.png"
-                alt="MoLab"
-                width={190}
-                height={72}
-                priority
-                sizes="190px"
-                className="w-auto drop-shadow-[0_0_20px_rgba(34,211,238,0.28)]"
-              />
-            </Link>
-          </div>
-
-          <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
-            <Link href="/" className="transition hover:text-cyan-300">Home</Link>
-            <Link href="/technology" className="transition hover:text-cyan-300">Technology</Link>
-            <Link href="/services" className="transition hover:text-cyan-300">Services</Link>
-            <Link href="/about" className="transition hover:text-cyan-300">About</Link>
-            <Link href="/contact" className="transition hover:text-cyan-300">Contact</Link>
-          </nav>
-
-          <div className="flex justify-end">
-            <Link
-              href="/upload"
-              className="rounded-full border border-cyan-300/30 bg-cyan-400/20 px-6 py-2.5 text-sm font-medium text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.18)] transition hover:scale-105 hover:bg-cyan-400/30"
-            >
-              Upload Sample
-            </Link>
-          </div>
-        </header>
+        <SiteHeader />
 
         <div className="mt-8 flex flex-col items-center text-center">
           <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-6 py-2 text-base uppercase tracking-[0.35em] text-cyan-300">
