@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 
 type SieveRow = {
   mesh: string;
@@ -90,6 +91,11 @@ const PROCAMP_DEFS = [
 ];
 
 export default function UploadPage() {
+  const supabase = createClient();
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
   const [files, setFiles] = useState<PreviewFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResponse | null>(null);
@@ -745,6 +751,25 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.href = "/signin";
+        return;
+      }
+
+      setIsAuthenticated(true);
+      setUserEmail(user.email ?? null);
+      setAuthLoading(false);
+    };
+
+    checkAuth();
+  }, [supabase]);
+
+  useEffect(() => {
     detectMicroscopeApi();
     fetchStageStatus();
   }, []);
@@ -818,7 +843,7 @@ export default function UploadPage() {
       }
       files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
-  }, []);
+  }, [files]);
 
   const startAnalysis = async () => {
     const currentFiles = filesRef.current;
@@ -917,6 +942,20 @@ export default function UploadPage() {
   const showBottomSummary = files.length > 0 && !isLoading && !result;
   const supportedProcAmpControls = procAmpControls.filter((item) => item.supported);
 
+  if (authLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#020617] text-white">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-6 py-4 backdrop-blur-md">
+          Checking account access...
+        </div>
+      </main>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -967,6 +1006,12 @@ export default function UploadPage() {
           <p className="mt-4 max-w-2xl text-base text-slate-400">
             Upload all grain images you want to analyze in one premium batch workflow.
           </p>
+
+          {userEmail && (
+            <p className="mt-3 text-sm text-cyan-300">
+              Signed in as: {userEmail}
+            </p>
+          )}
         </div>
 
         <div className="mx-auto mt-10 w-full max-w-7xl rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-md">
@@ -1271,7 +1316,7 @@ export default function UploadPage() {
                           >
                             {stageStatus?.connected ? "Turntable Connected" : "Connect Turntable"}
                           </button>
-                        
+
                           <button
                             type="button"
                             onClick={() => stagePost("/stage/disconnect")}
