@@ -643,10 +643,7 @@ export default function UploadPage() {
       });
 
       setCameraOpen(true);
-
-      if (!microscopeStatus) {
-        await initializeMicroscopePanel();
-      }
+      await initializeMicroscopePanel();
     } catch {
       setCameraError(
         "Could not open the selected microscope/camera. Close any microscope software using it, allow browser camera permission, and try again."
@@ -705,14 +702,6 @@ export default function UploadPage() {
         setCameraError("Camera preview is not ready.");
         return;
       }
-
-      if (!microscopeStatus?.led_on) {
-        await setLed(true);
-        await sleep(120);
-      }
-
-      await setLightLevel(microscopeStatus?.light_level ?? 6);
-      await sleep(120);
 
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -853,9 +842,9 @@ export default function UploadPage() {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
-      files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      filesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
-  }, [files]);
+  }, []);
 
   const startAnalysis = async () => {
     const currentFiles = filesRef.current;
