@@ -55,41 +55,7 @@ export default function ContactPage() {
       <section className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 pt-0 pb-10 sm:px-6 lg:px-8">
 
         {/* Header */}
-        <header className="grid h-20 grid-cols-[1fr_auto_1fr] items-center">
-          <div className="flex items-center">
-            <Link href="/">
-              <Image
-                src="/logo/logo.png"
-                alt="MoLab"
-                width={190}
-                height={72}
-                priority
-                sizes="190px"
-                className="w-auto drop-shadow-[0_0_20px_rgba(34,211,238,0.28)]"
-              />
-            </Link>
-          </div>
-
-          <nav className="hidden items-center justify-center gap-8 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300 backdrop-blur-md md:flex">
-            <Link href="/" className="transition hover:text-cyan-300">
-              Home
-            </Link>
-            <Link href="/technology" className="transition hover:text-cyan-300">
-              Technology
-            </Link>
-            <Link href="/services" className="transition hover:text-cyan-300">
-              Services
-            </Link>
-            <Link href="/about" className="transition hover:text-cyan-300">
-              About
-            </Link>
-            <Link href="/contact" className="text-cyan-300">
-              Contact
-            </Link>
-          </nav>
-
-          <div></div>
-        </header>
+        <SiteHeader />
 
         {/* Title */}
         <div className="mt-10 flex flex-col items-center text-center">
