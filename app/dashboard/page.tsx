@@ -28,23 +28,29 @@ function formatDateOnly(value?: string | null) {
 
 function getBestResult(run: any) {
   const results = Array.isArray(run.test_results) ? run.test_results : [];
-  if (results.length === 0) return null;
 
-  const completedWithFile =
+  const completedWithNumbers =
     results.find(
       (r: any) =>
         r?.result_json?.status === "completed" &&
-        (r?.report_file || r?.result_json?.zip_url)
-    ) ?? null;
+        typeof r?.result_json?.total_files !== "undefined"
+    ) || null;
 
-  if (completedWithFile) return completedWithFile;
+  if (completedWithNumbers) return completedWithNumbers;
 
   const completed =
-    results.find((r: any) => r?.result_json?.status === "completed") ?? null;
+    results.find((r: any) => r?.result_json?.status === "completed") || null;
 
   if (completed) return completed;
 
-  return results[results.length - 1] ?? null;
+  if (run?.result_json) {
+    return {
+      result_json: run.result_json,
+      report_file: run.report_file ?? run.result_json?.zip_url ?? null,
+    };
+  }
+
+  return results[results.length - 1] || null;
 }
 
 function getRunFilesCount(run: any) {
@@ -53,23 +59,39 @@ function getRunFilesCount(run: any) {
     bestResult?.result_json?.total_files ??
     bestResult?.result_json?.files ??
     bestResult?.result_json?.image_count ??
+    run?.result_json?.total_files ??
     "—"
   );
 }
 
 function getRunGrainsCount(run: any) {
   const bestResult = getBestResult(run);
-  return bestResult?.result_json?.total_grains ?? "—";
+  return (
+    bestResult?.result_json?.total_grains ??
+    run?.result_json?.total_grains ??
+    "—"
+  );
 }
 
 function getRunDownloadLink(run: any) {
   const bestResult = getBestResult(run);
-  return bestResult?.report_file || bestResult?.result_json?.zip_url || null;
+  return (
+    bestResult?.report_file ||
+    bestResult?.result_json?.zip_url ||
+    run?.report_file ||
+    run?.result_json?.zip_url ||
+    null
+  );
 }
 
 function getDisplayStatus(run: any) {
   const bestResult = getBestResult(run);
-  return bestResult?.result_json?.status || run.status || "—";
+  return (
+    bestResult?.result_json?.status ||
+    run?.result_json?.status ||
+    run.status ||
+    "—"
+  );
 }
 
 function startOfToday() {
@@ -109,9 +131,12 @@ export default async function DashboardPage() {
     .select(`
       id,
       user_id,
+      sample_id,
       status,
       started_at,
       finished_at,
+      result_json,
+      report_file,
       samples (
         id,
         sample_name,
@@ -119,9 +144,11 @@ export default async function DashboardPage() {
       ),
       test_results (
         id,
+        user_id,
+        test_run_id,
         test_type,
-        report_file,
         result_json,
+        report_file,
         created_at
       )
     `)
@@ -241,7 +268,7 @@ export default async function DashboardPage() {
             <p className="text-slate-400">No records yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="w-full min-w-[950px] text-sm">
                 <thead className="text-slate-400">
                   <tr className="border-b border-white/10">
                     <th className="px-2 py-3 text-left">Sample</th>
