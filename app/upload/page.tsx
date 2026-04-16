@@ -470,7 +470,10 @@ export default function UploadPage() {
   };
 
   const setLightLevel = async (level: number) => {
-    await microscopePost("/microscope/light-level", { level });
+    const data = await microscopePost("/microscope/light-level", { level });
+  
+    // 🔥 ensure UI matches backend exactly
+    setMicroscopeStatus(data);
   };
 
   const setExposure = async (value: number) => {
