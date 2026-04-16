@@ -28,29 +28,23 @@ function formatDateOnly(value?: string | null) {
 
 function getBestResult(run: any) {
   const results = Array.isArray(run.test_results) ? run.test_results : [];
+  if (results.length === 0) return null;
 
-  const completedWithNumbers =
+  const completedWithFile =
     results.find(
       (r: any) =>
         r?.result_json?.status === "completed" &&
-        typeof r?.result_json?.total_files !== "undefined"
-    ) || null;
+        (r?.report_file || r?.result_json?.zip_url)
+    ) ?? null;
 
-  if (completedWithNumbers) return completedWithNumbers;
+  if (completedWithFile) return completedWithFile;
 
   const completed =
-    results.find((r: any) => r?.result_json?.status === "completed") || null;
+    results.find((r: any) => r?.result_json?.status === "completed") ?? null;
 
   if (completed) return completed;
 
-  if (run?.result_json) {
-    return {
-      result_json: run.result_json,
-      report_file: run.report_file ?? run.result_json?.zip_url ?? null,
-    };
-  }
-
-  return results[results.length - 1] || null;
+  return results[results.length - 1] ?? null;
 }
 
 function getRunFilesCount(run: any) {
@@ -59,39 +53,23 @@ function getRunFilesCount(run: any) {
     bestResult?.result_json?.total_files ??
     bestResult?.result_json?.files ??
     bestResult?.result_json?.image_count ??
-    run?.result_json?.total_files ??
     "—"
   );
 }
 
 function getRunGrainsCount(run: any) {
   const bestResult = getBestResult(run);
-  return (
-    bestResult?.result_json?.total_grains ??
-    run?.result_json?.total_grains ??
-    "—"
-  );
+  return bestResult?.result_json?.total_grains ?? "—";
 }
 
 function getRunDownloadLink(run: any) {
   const bestResult = getBestResult(run);
-  return (
-    bestResult?.report_file ||
-    bestResult?.result_json?.zip_url ||
-    run?.report_file ||
-    run?.result_json?.zip_url ||
-    null
-  );
+  return bestResult?.report_file || bestResult?.result_json?.zip_url || null;
 }
 
 function getDisplayStatus(run: any) {
   const bestResult = getBestResult(run);
-  return (
-    bestResult?.result_json?.status ||
-    run?.result_json?.status ||
-    run.status ||
-    "—"
-  );
+  return bestResult?.result_json?.status || run.status || "—";
 }
 
 function startOfToday() {
@@ -131,12 +109,9 @@ export default async function DashboardPage() {
     .select(`
       id,
       user_id,
-      sample_id,
       status,
       started_at,
       finished_at,
-      result_json,
-      report_file,
       samples (
         id,
         sample_name,
