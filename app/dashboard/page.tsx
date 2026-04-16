@@ -119,11 +119,9 @@ export default async function DashboardPage() {
       ),
       test_results (
         id,
-        user_id,
-        test_run_id,
         test_type,
-        result_json,
         report_file,
+        result_json,
         created_at
       )
     `)
@@ -243,7 +241,7 @@ export default async function DashboardPage() {
             <p className="text-slate-400">No records yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[950px] text-sm">
+              <table className="w-full min-w-[900px] text-sm">
                 <thead className="text-slate-400">
                   <tr className="border-b border-white/10">
                     <th className="px-2 py-3 text-left">Sample</th>
