@@ -147,7 +147,7 @@ function getRangeStart(range: string) {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ range?: string }>;
+  searchParams?: { range?: string };
 }) {
   const supabase = await createClient();
 
@@ -159,11 +159,10 @@ export default async function DashboardPage({
     redirect("/signin");
   }
 
-  const resolvedSearchParams = await searchParams;
   const selectedRange =
-    resolvedSearchParams?.range &&
-    ["total", "year", "90", "30", "7"].includes(resolvedSearchParams.range)
-      ? resolvedSearchParams.range
+    searchParams?.range &&
+    ["total", "year", "90", "30", "7"].includes(searchParams.range)
+      ? searchParams.range
       : "total";
 
   const { data: runs, error } = await supabase
