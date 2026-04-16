@@ -11,6 +11,7 @@ type SearchParams = Promise<{
 const PAGE_SIZE = 10;
 
 const TIMEFRAME_OPTIONS = [
+  { value: "today", label: "Today" },
   { value: "7d", label: "Past 7 Days" },
   { value: "30d", label: "Past Month" },
   { value: "90d", label: "Past 90 Days" },
@@ -132,8 +133,32 @@ function getRunTimestamp(run: any) {
   return run.finished_at || run.started_at || run.samples?.created_at || null;
 }
 
+function getEdmontonDayBounds() {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Edmonton",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const year = Number(parts.find((p) => p.type === "year")?.value);
+  const month = Number(parts.find((p) => p.type === "month")?.value);
+  const day = Number(parts.find((p) => p.type === "day")?.value);
+
+  const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0));
+
+  return { start, end };
+}
+
 function getTimeframeCutoff(timeframe: TimeframeValue) {
   if (timeframe === "all") return null;
+
+  if (timeframe === "today") {
+    return getEdmontonDayBounds().start;
+  }
 
   const now = new Date();
   const cutoff = new Date(now);
@@ -147,6 +172,18 @@ function getTimeframeCutoff(timeframe: TimeframeValue) {
 }
 
 function filterRunsByTimeframe(runs: any[], timeframe: TimeframeValue) {
+  if (timeframe === "all") return runs;
+
+  if (timeframe === "today") {
+    const { start, end } = getEdmontonDayBounds();
+
+    return runs.filter((run) => {
+      if (!run.timestamp) return false;
+      const runDate = new Date(run.timestamp);
+      return runDate >= start && runDate < end;
+    });
+  }
+
   const cutoff = getTimeframeCutoff(timeframe);
   if (!cutoff) return runs;
 
@@ -175,7 +212,8 @@ export default async function DashboardPage({
     ? (rawTimeframe as TimeframeValue)
     : "7d";
 
-  const currentPage = Math.max(1, Number(resolvedSearchParams?.page || "1") || 1);
+  const currentPage =
+    Math.max(1, Number(resolvedSearchParams?.page || "1")) || 1;
 
   const supabase = await createClient();
 
