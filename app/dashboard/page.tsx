@@ -86,18 +86,18 @@ function getRunFilesCount(run: any) {
     bestResult?.result_json?.total_files ??
     bestResult?.result_json?.files ??
     bestResult?.result_json?.image_count ??
-    "—"
+    0
   );
 }
 
 function getRunGrainsCount(run: any) {
   const bestResult = getBestResult(run);
-  return bestResult?.result_json?.total_grains ?? "—";
+  return bestResult?.result_json?.total_grains ?? 0;
 }
 
 function getRunProcessingTime(run: any) {
   const bestResult = getBestResult(run);
-  return bestResult?.result_json?.processing_time_seconds ?? null;
+  return bestResult?.result_json?.processing_time_seconds ?? 0;
 }
 
 function getRunDownloadLink(run: any) {
@@ -114,7 +114,41 @@ function getRunTimestamp(run: any) {
   return run.finished_at || run.started_at || run.samples?.created_at || null;
 }
 
-export default async function DashboardPage() {
+function getRangeStart(range: string) {
+  const now = new Date();
+
+  if (range === "year") {
+    const d = new Date(now);
+    d.setFullYear(d.getFullYear() - 1);
+    return d;
+  }
+
+  if (range === "90") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 90);
+    return d;
+  }
+
+  if (range === "30") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 30);
+    return d;
+  }
+
+  if (range === "7") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 7);
+    return d;
+  }
+
+  return null;
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ range?: string }>;
+}) {
   const supabase = await createClient();
 
   const {
@@ -124,6 +158,13 @@ export default async function DashboardPage() {
   if (!user) {
     redirect("/signin");
   }
+
+  const resolvedSearchParams = await searchParams;
+  const selectedRange =
+    resolvedSearchParams?.range &&
+    ["total", "year", "90", "30", "7"].includes(resolvedSearchParams.range)
+      ? resolvedSearchParams.range
+      : "total";
 
   const { data: runs, error } = await supabase
     .from("test_runs")
@@ -162,18 +203,36 @@ export default async function DashboardPage() {
     };
   });
 
-  const totalRuns = runList.length;
+  const rangeStart = getRangeStart(selectedRange);
+
+  const filteredRuns = runList.filter((run: any) => {
+    if (!rangeStart) return true;
+    if (!run.timestamp) return false;
+    return new Date(run.timestamp) >= rangeStart;
+  });
+
+  const totalRuns = filteredRuns.length;
   const lastVisit = user.last_sign_in_at || user.created_at || null;
 
-  const totalGrainsAnalyzed = runList.reduce((sum: number, run: any) => {
-    const grains = getRunGrainsCount(run);
-    return sum + (typeof grains === "number" ? grains : 0);
+  const totalImages = filteredRuns.reduce((sum: number, run: any) => {
+    return sum + Number(getRunFilesCount(run) || 0);
   }, 0);
 
-  const totalProcessingTimeSeconds = runList.reduce((sum: number, run: any) => {
-    const seconds = getRunProcessingTime(run);
-    return sum + (typeof seconds === "number" ? seconds : 0);
+  const totalGrainsAnalyzed = filteredRuns.reduce((sum: number, run: any) => {
+    return sum + Number(getRunGrainsCount(run) || 0);
   }, 0);
+
+  const totalProcessingTimeSeconds = filteredRuns.reduce((sum: number, run: any) => {
+    return sum + Number(getRunProcessingTime(run) || 0);
+  }, 0);
+
+  const rangeLabelMap: Record<string, string> = {
+    total: "Total",
+    year: "Past Year",
+    "90": "Past 90 Days",
+    "30": "Past 30 Days",
+    "7": "Past 7 Days",
+  };
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
@@ -196,8 +255,40 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="mt-8 flex justify-center">
+          <form method="GET">
+            <select
+              name="range"
+              defaultValue={selectedRange}
+              onChange={(e) => e.currentTarget.form?.submit()}
+              className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+            >
+              <option value="total" className="bg-slate-900 text-white">
+                Total
+              </option>
+              <option value="year" className="bg-slate-900 text-white">
+                Past Year
+              </option>
+              <option value="90" className="bg-slate-900 text-white">
+                Past 90 Days
+              </option>
+              <option value="30" className="bg-slate-900 text-white">
+                Past 30 Days
+              </option>
+              <option value="7" className="bg-slate-900 text-white">
+                Past 7 Days
+              </option>
+            </select>
+          </form>
+        </div>
+
+        <p className="mt-3 text-center text-sm text-slate-400">
+          Showing stats for: <span className="text-cyan-300">{rangeLabelMap[selectedRange]}</span>
+        </p>
+
+        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
           <Stat title="Total Tests" value={totalRuns} />
+          <Stat title="Total Images" value={totalImages} />
           <Stat title="Total Grains Analyzed" value={totalGrainsAnalyzed} />
           <Stat
             title="Total Processing Time"
