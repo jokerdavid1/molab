@@ -783,8 +783,17 @@ export default function UploadPage() {
   }, [supabase]);
 
   useEffect(() => {
-    detectMicroscopeApi();
-    fetchStageStatus();
+    const init = async () => {
+      const api = await detectMicroscopeApi();
+  
+      // 🔥 THIS LINE FIXES YOUR BUG
+      await fetchMicroscopeStatus(api);
+  
+      await loadProcAmpControls(api);
+      await fetchStageStatus();
+    };
+  
+    init();
   }, []);
 
   useEffect(() => {
