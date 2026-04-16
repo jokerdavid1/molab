@@ -162,6 +162,15 @@ export default function UploadPage() {
   }, [files.length]);
 
   const totalImages = files.length;
+
+  const displayFilesCount =
+    phase === "completed" ? (result?.total_files ?? totalImages) : totalImages;
+  
+  const displayDoneCount =
+    phase === "completed"
+      ? (result?.total_files ?? totalImages)
+      : processedImages;
+  
   const totalSteps = totalBatches + totalImages;
   const completedSteps =
     phase === "completed" ? totalSteps : uploadedBatches + processedImages;
@@ -1607,13 +1616,13 @@ export default function UploadPage() {
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Files</p>
-                  <p className="mt-1 text-lg font-semibold text-white">{files.length}</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{displayFilesCount}</p>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Done</p>
                   <p className="mt-1 text-lg font-semibold text-white">
-                    {phase === "completed" ? files.length : processedImages}
+                    {displayDoneCount}
                   </p>
                 </div>
 
