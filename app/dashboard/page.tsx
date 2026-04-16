@@ -26,6 +26,39 @@ function formatDateOnly(value?: string | null) {
   });
 }
 
+function formatTimeOnly(value?: string | null) {
+  if (!value) return "—";
+
+  return new Date(value).toLocaleTimeString("en-CA", {
+    timeZone: "America/Edmonton",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatSeconds(value?: number | null) {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${value.toFixed(1)} s`;
+}
+
+function formatTotalSeconds(totalSeconds: number) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "0.0 s";
+
+  if (totalSeconds < 60) {
+    return `${totalSeconds.toFixed(1)} s`;
+  }
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds.toFixed(1)}s`;
+  }
+
+  return `${minutes}m ${seconds.toFixed(1)}s`;
+}
+
 function getBestResult(run: any) {
   const results = Array.isArray(run.test_results) ? run.test_results : [];
   if (results.length === 0) return null;
@@ -62,6 +95,11 @@ function getRunGrainsCount(run: any) {
   return bestResult?.result_json?.total_grains ?? "—";
 }
 
+function getRunProcessingTime(run: any) {
+  const bestResult = getBestResult(run);
+  return bestResult?.result_json?.processing_time_seconds ?? null;
+}
+
 function getRunDownloadLink(run: any) {
   const bestResult = getBestResult(run);
   return bestResult?.report_file || bestResult?.result_json?.zip_url || null;
@@ -70,23 +108,6 @@ function getRunDownloadLink(run: any) {
 function getDisplayStatus(run: any) {
   const bestResult = getBestResult(run);
   return bestResult?.result_json?.status || run.status || "—";
-}
-
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function startOfMonth() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
-function daysAgoStart(days: number) {
-  const d = startOfToday();
-  d.setDate(d.getDate() - days);
-  return d;
 }
 
 function getRunTimestamp(run: any) {
@@ -144,47 +165,15 @@ export default async function DashboardPage() {
   const totalRuns = runList.length;
   const lastVisit = user.last_sign_in_at || user.created_at || null;
 
-  const monthStart = startOfMonth();
-  const last7Start = daysAgoStart(6);
-  const last30Start = daysAgoStart(29);
+  const totalGrainsAnalyzed = runList.reduce((sum: number, run: any) => {
+    const grains = getRunGrainsCount(run);
+    return sum + (typeof grains === "number" ? grains : 0);
+  }, 0);
 
-  const thisMonthRuns = runList.filter((run: any) => {
-    if (!run.timestamp) return false;
-    return new Date(run.timestamp) >= monthStart;
-  }).length;
-
-  const last7Runs = runList.filter((run: any) => {
-    if (!run.timestamp) return false;
-    return new Date(run.timestamp) >= last7Start;
-  }).length;
-
-  const last30Runs = runList.filter((run: any) => {
-    if (!run.timestamp) return false;
-    return new Date(run.timestamp) >= last30Start;
-  }).length;
-
-  const avgPerDay30 = Math.round((last30Runs / 30) * 10) / 10;
-
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(last7Start);
-    d.setDate(last7Start.getDate() + i);
-
-    const label = d.toLocaleDateString("en-CA", {
-      timeZone: "America/Edmonton",
-      weekday: "short",
-    });
-
-    const key = d.toDateString();
-
-    const count = runList.filter((run: any) => {
-      if (!run.timestamp) return false;
-      return new Date(run.timestamp).toDateString() === key;
-    }).length;
-
-    return { label, count };
-  });
-
-  const maxChartValue = Math.max(...last7Days.map((d) => d.count), 1);
+  const totalProcessingTimeSeconds = runList.reduce((sum: number, run: any) => {
+    const seconds = getRunProcessingTime(run);
+    return sum + (typeof seconds === "number" ? seconds : 0);
+  }, 0);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
@@ -207,31 +196,13 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-          <Stat title="Total" value={totalRuns} />
-          <Stat title="This Month" value={thisMonthRuns} />
-          <Stat title="7 Days" value={last7Runs} />
-          <Stat title="Avg/Day" value={avgPerDay30} />
-        </div>
-
-        <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-6">
-          <h2 className="mb-4 text-2xl font-semibold">Last 7 Days</h2>
-
-          <div className="flex h-48 items-end gap-2">
-            {last7Days.map((d, i) => (
-              <div key={i} className="flex flex-1 flex-col items-center">
-                <div className="mb-2 text-sm text-white">{d.count}</div>
-                <div
-                  className="w-full rounded-t bg-cyan-400"
-                  style={{
-                    height: `${(d.count / maxChartValue) * 100}%`,
-                    minHeight: d.count ? "14px" : "4px",
-                  }}
-                />
-                <div className="mt-2 text-sm text-white">{d.label}</div>
-              </div>
-            ))}
-          </div>
+        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Stat title="Total Tests" value={totalRuns} />
+          <Stat title="Total Grains Analyzed" value={totalGrainsAnalyzed} />
+          <Stat
+            title="Total Processing Time"
+            value={formatTotalSeconds(totalProcessingTimeSeconds)}
+          />
         </div>
 
         <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-6">
@@ -241,7 +212,7 @@ export default async function DashboardPage() {
             <p className="text-slate-400">No records yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="w-full min-w-[1100px] text-sm">
                 <thead className="text-slate-400">
                   <tr className="border-b border-white/10">
                     <th className="px-2 py-3 text-left">Sample</th>
@@ -249,6 +220,7 @@ export default async function DashboardPage() {
                     <th className="px-2 py-3 text-left">Time</th>
                     <th className="px-2 py-3 text-left">Images</th>
                     <th className="px-2 py-3 text-left">Grains</th>
+                    <th className="px-2 py-3 text-left">Processing Time</th>
                     <th className="px-2 py-3 text-left">Status</th>
                     <th className="px-2 py-3 text-left">Download</th>
                   </tr>
@@ -260,6 +232,7 @@ export default async function DashboardPage() {
                     const time = run.timestamp;
                     const downloadLink = getRunDownloadLink(run);
                     const displayStatus = getDisplayStatus(run);
+                    const processingTime = getRunProcessingTime(run);
 
                     return (
                       <tr key={run.id} className="border-t border-white/10">
@@ -272,7 +245,7 @@ export default async function DashboardPage() {
                         </td>
 
                         <td className="px-2 py-4 text-white">
-                          {formatDateTime(time)}
+                          {formatTimeOnly(time)}
                         </td>
 
                         <td className="px-2 py-4 text-white">
@@ -281,6 +254,10 @@ export default async function DashboardPage() {
 
                         <td className="px-2 py-4 text-white">
                           {getRunGrainsCount(run)}
+                        </td>
+
+                        <td className="px-2 py-4 text-white">
+                          {formatSeconds(processingTime)}
                         </td>
 
                         <td className="px-2 py-4">
