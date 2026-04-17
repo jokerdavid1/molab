@@ -329,6 +329,36 @@ export default function UploadPage() {
     }
   };
 
+  const connectMicroscope = async (base?: string) => {
+    const api = base ?? microscopeApiBase;
+  
+    setMicroscopeBusy(true);
+    setCameraError(null);
+  
+    try {
+      const res = await fetch(`${api}/microscope/connect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+  
+      const data = await res.json();
+  
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || "Failed to connect microscope.");
+      }
+  
+      setMicroscopeStatus(data);
+      return data as MicroscopeStatus;
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to connect microscope.";
+      setCameraError(msg);
+      throw err;
+    } finally {
+      setMicroscopeBusy(false);
+    }
+  };
+
   const loadProcAmpControls = async (base?: string) => {
     const api = base ?? microscopeApiBase;
 
@@ -398,7 +428,7 @@ export default function UploadPage() {
 
   const initializeMicroscopePanel = async () => {
     const api = await detectMicroscopeApi();
-    await fetchMicroscopeStatus(api);
+    await connectMicroscope(api);
     await loadProcAmpControls(api);
     await fetchStageStatus();
   };
@@ -573,14 +603,22 @@ export default function UploadPage() {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
-
+  
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.srcObject = null;
       videoRef.current.load();
     }
-
+  
     setCameraOpen(false);
+    setProcAmpControls(
+      PROCAMP_DEFS.map((item) => ({
+        ...item,
+        supported: false,
+        value: 0,
+        range: null,
+      }))
+    );
   };
 
   const loadCameraDevices = async () => {
@@ -610,14 +648,14 @@ export default function UploadPage() {
   const startCameraStream = async (deviceId?: string) => {
     try {
       setCameraError(null);
-
+  
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setCameraError("Camera access is not supported in this browser.");
         return;
       }
-
+  
       stopCamera();
-
+  
       const constraints: MediaStreamConstraints = {
         audio: false,
         video: deviceId
@@ -631,20 +669,20 @@ export default function UploadPage() {
               height: { ideal: 1080 },
             },
       };
-
+  
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
-
+  
       const video = videoRef.current;
       if (!video) {
         setCameraError("Video preview element is not ready.");
         return;
       }
-
+  
       video.srcObject = stream;
       video.muted = true;
       video.playsInline = true;
-
+  
       await new Promise<void>((resolve, reject) => {
         video.onloadedmetadata = async () => {
           try {
@@ -655,8 +693,10 @@ export default function UploadPage() {
           }
         };
       });
-
+  
       setCameraOpen(true);
+  
+      // Important: only now connect Dino-Lite and re-apply saved settings
       await initializeMicroscopePanel();
     } catch {
       setCameraError(
@@ -788,11 +828,8 @@ export default function UploadPage() {
   useEffect(() => {
     const init = async () => {
       const api = await detectMicroscopeApi();
-  
-      // 🔥 THIS LINE FIXES YOUR BUG
-      await fetchMicroscopeStatus(api);
-  
-      await loadProcAmpControls(api);
+      setMicroscopeApiBase(api);
+      await fetchMicroscopeStatus(api); // passive only now
       await fetchStageStatus();
     };
   
